@@ -1,0 +1,13 @@
+- BaseBG: Color of the base UI (Overall background)
+- BaseText: Color of Text on the Base.
+- EditorBG: Background color of the editor.
+- EditorCurrentLine: Background color of the current line.
+- EditorText: Color of text on the editor.
+- EditorComments: Text color for comments in the editor.
+- EditorKeywords: Text color for the keywords in the editor.
+- EditorStringLiteral: Text color for string literals in the editor.
+- EditorNumberLiteral: Text color for the number literals in the editor.
+- OverlayBG: Background color for the overlays.
+- OverlayText: Color for text on the overlays.
+- StatusLineBG: Background color for the status line.
+- StatusLineText: Color for the text on the status line.
