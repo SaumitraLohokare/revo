@@ -12,3 +12,5 @@
 
 - Update `BufferData` API to be self contained. So that in the future if we decide to
   change the implementation of how we represent the data, nothing else needs to be updated.
+
+- Update active buffer width and height on resize.
