@@ -547,6 +547,25 @@ impl Buffer {
                     .unwrap();
             }
             Event::Key(KeyEvent {
+                code: KeyCode::Esc,
+                modifiers: KeyModifiers::NONE,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                self.msg_sender
+                    .send(EditorEvent::Buffer(BufferEvent::CancelEvent {
+                        paused_event_id: self.paused_event_id,
+                    }))
+                    .unwrap();
+
+                self.msg_sender
+                    .send(EditorEvent::Buffer(BufferEvent::Close {
+                        id: self.id,
+                        is_overlay: self.is_overlay,
+                    }))
+                    .unwrap();
+            }
+            Event::Key(KeyEvent {
                 code: KeyCode::Backspace,
                 modifiers: KeyModifiers::NONE,
                 kind: KeyEventKind::Press,
