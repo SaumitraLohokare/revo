@@ -1,3 +1,7 @@
+# Revo
+
+![screenshot](./assets/application_ss.png)
+
 ## Milestones
 
 - [x] Double Buffering in Terminal
