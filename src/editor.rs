@@ -29,6 +29,9 @@ pub enum BufferEvent {
         paused_event_id: Uuid,
         result: String,
     },
+    CancelEvent {
+        paused_event_id: Uuid,
+    },
 }
 
 pub enum EditorEvent {
@@ -126,10 +129,18 @@ impl<W: Write> Editor<W> {
         }
     }
 
+    pub fn begin_draw(&mut self) -> io::Result<()> {
+        self.terminal.begin_draw(&self.settings.theme)
+    }
+
+    pub fn end_draw(&mut self) -> io::Result<()> {
+        self.terminal.end_draw()
+    }
+
     pub fn draw_buffers(&mut self) {
         if self.buffers.len() > 0 {
             for buf in self.buffers.values().filter(|b| b.visible) {
-                self.terminal.draw_buffer(buf);
+                self.terminal.draw_buffer(buf, &self.settings.theme);
             }
         } else {
             self.terminal.draw_welcome_msg();
@@ -137,13 +148,13 @@ impl<W: Write> Editor<W> {
 
         if self.overlays.len() > 0 {
             for buf in self.overlays.values().filter(|b| b.visible) {
-                self.terminal.draw_buffer(buf);
+                self.terminal.draw_buffer(buf, &self.settings.theme);
             }
         }
     }
 
     pub fn draw_status_line(&mut self) {
-        self.terminal.draw_status_line(&self.status_line);
+        self.terminal.draw_status_line(&self.status_line, &self.settings.theme);
     }
 
     pub fn show_cursor(&mut self) -> io::Result<()> {
@@ -220,6 +231,18 @@ impl<W: Write> Editor<W> {
                         }
                         _ => ()
                     }
+                }
+            }
+            BufferEvent::CancelEvent { paused_event_id } => {
+                // Look through our paused events and match this id
+                if let Some((i, _)) = self
+                    .paused_events
+                    .iter()
+                    .filter(|e| e.id == paused_event_id)
+                    .enumerate()
+                    .next()
+                {
+                    self.paused_events.remove(i);
                 }
             }
         }

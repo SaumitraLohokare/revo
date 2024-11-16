@@ -97,15 +97,14 @@ fn run() -> io::Result<()> {
             unreachable!("As long as input thread is running, this should never be reached.");
         }
 
-        editor.terminal.begin_draw()?;
+        editor.begin_draw()?;
 
         editor.draw_buffers();
 
         editor.update_status_line_cursor();
         editor.draw_status_line();
 
-        editor.terminal.end_draw()?;
-
+        editor.end_draw()?;
         editor.show_cursor()?;
     }
 
