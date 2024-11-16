@@ -183,6 +183,7 @@ impl<W: Write> Terminal<W> {
 
     pub fn draw_buffer(&mut self, buffer: &Buffer, theme: &Theme) {
         let mut row_idx = buffer.y;
+        let buf_current_line = buffer.data.current_line() + row_idx as usize;
 
         let height = std::cmp::min(buffer.height, self.height);
 
@@ -208,8 +209,13 @@ impl<W: Write> Terminal<W> {
 
             match buffer.logic {
                 crate::buffer::BufferLogic::Editor => {
-                    self.brushes[row_idx as usize]
-                        .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.bg))));
+                    if buf_current_line == row_idx as usize {
+                        self.brushes[row_idx as usize]
+                            .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.current_line))));
+                    } else {
+                        self.brushes[row_idx as usize]
+                            .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.bg))));
+                    }
 
                     self.brushes[row_idx as usize]
                         .push((buffer.x as usize, BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.text))));
