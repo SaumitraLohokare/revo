@@ -89,7 +89,7 @@ impl<W: Write> Terminal<W> {
     pub fn begin_draw(&mut self, theme: &Theme) -> io::Result<()> {
         for row in self.buffer.iter_mut() {
             row.clear();
-            row.fill_to_capacity('.');
+            row.fill_to_capacity(' ');
         }
 
         for brush in self.brushes.iter_mut() {
@@ -149,6 +149,12 @@ impl<W: Write> Terminal<W> {
                 };
                 start_idx = *idx;
             }
+            let colored_str = &row[start_idx..];
+            queue!(
+                self.out,
+                MoveTo(start_idx as u16, i as u16),
+                Print(colored_str)
+            )?;
         }
 
         self.flush()
