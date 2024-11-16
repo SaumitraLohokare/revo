@@ -2,7 +2,7 @@
 
 - [x] Double Buffering in Terminal
 - [x] Save & Save As
-- [ ] Settings and Theme support
+- [x] Basic Settings and Theme support
 - [ ] Buffer Decorations
 
 ## Bugs
