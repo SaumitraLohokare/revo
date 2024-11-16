@@ -115,5 +115,5 @@ fn default_settings_schema() -> SettingsSchema {
 
 #[derive(Debug)]
 pub struct Settings {
-    theme: Theme,
+    pub theme: Theme,
 }

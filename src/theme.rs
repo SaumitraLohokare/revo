@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use crossterm::style::Color;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -72,5 +73,27 @@ pub fn default_theme() -> Theme {
             bg: "#3b4048".to_string(),  // Status line background (darker)
             text: "#ffffff".to_string(), // White text for status line
         },
+    }
+}
+
+impl Theme {
+    fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
+        let hex = hex.trim_start_matches('#');
+
+        let r_str = &hex[0..2];
+        let g_str = &hex[2..4];
+        let b_str = &hex[4..6];
+
+        let r = u8::from_str_radix(r_str, 16).expect("Invalid hex: {r_str}");
+        let g = u8::from_str_radix(g_str, 16).expect("Invalid hex: {r_str}");
+        let b = u8::from_str_radix(b_str, 16).expect("Invalid hex: {r_str}");
+
+        (r, g, b)
+    }
+
+    pub fn hex_to_color(hex: &str) -> Color {
+        let (r, g, b) = Self::hex_to_rgb(hex);
+        
+        Color::Rgb { r, g, b }
     }
 }

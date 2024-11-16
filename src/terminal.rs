@@ -7,7 +7,7 @@ use std::{
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
     execute, queue,
-    style::{Print, ResetColor},
+    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{
         self, disable_raw_mode, enable_raw_mode, DisableLineWrap, EnableLineWrap,
         EnterAlternateScreen, LeaveAlternateScreen,
@@ -18,12 +18,21 @@ use crate::{
     buffer::{Buffer, Line},
     status_line::StatusLine,
     string::StringExt,
+    theme::Theme,
 };
+
+enum BrushEvent {
+    SetBG(Color),
+    PreviousBG,
+    SetFG(Color),
+    PreviousFG,
+}
 
 pub struct Terminal<W: Write> {
     pub width: u16,
     pub height: u16,
     buffer: Vec<String>,
+    brushes: Vec<Vec<(usize, BrushEvent)>>,
     out: W,
 }
 
@@ -40,12 +49,15 @@ impl<W: Write> Terminal<W> {
             })
             .collect();
 
+        let brushes = (0..size.1).into_iter().map(|_| vec![]).collect();
+
         enable_raw_mode()?;
 
         let mut display = Self {
             width: size.0,
             height: size.1,
             buffer,
+            brushes,
             out,
         };
 
@@ -66,16 +78,24 @@ impl<W: Write> Terminal<W> {
                 line
             })
             .collect();
+
+        self.brushes = (0..h).into_iter().map(|_| vec![]).collect();
     }
 
     pub fn flush(&mut self) -> io::Result<()> {
         self.out.flush()
     }
 
-    pub fn begin_draw(&mut self) -> io::Result<()> {
+    pub fn begin_draw(&mut self, theme: &Theme) -> io::Result<()> {
         for row in self.buffer.iter_mut() {
             row.clear();
             row.fill_to_capacity('.');
+        }
+
+        for brush in self.brushes.iter_mut() {
+            brush.clear();
+            brush.push((0, BrushEvent::SetBG(Theme::hex_to_color(&theme.ui.base_bg))));
+            brush.push((0, BrushEvent::SetFG(Theme::hex_to_color(&theme.ui.base_text))));
         }
 
         queue!(self.out, ResetColor, Hide)
@@ -83,7 +103,52 @@ impl<W: Write> Terminal<W> {
 
     pub fn end_draw(&mut self) -> io::Result<()> {
         for (i, row) in self.buffer.iter().enumerate() {
-            queue!(self.out, MoveTo(0, i as u16), Print(row))?;
+            let row_burshes = &mut self.brushes[i];
+
+            // if row_burshes.len() == 0 {
+            //     queue!(self.out, MoveTo(0, i as u16), Print(row))?;
+            // }
+
+            row_burshes.sort_by_key(|b| b.0); // Sort based on colors
+
+            let mut start_idx = 0;
+            let mut bg_prev_color = None;
+            let mut bg_prev_prev_color = None; // Hack... I wish there is a better way
+            let mut fg_prev_color = None;
+            let mut fg_prev_prev_color = None; // Hack... I wish there is a better way
+            for (idx, color) in row_burshes {
+                let colored_str = &row[start_idx..*idx];
+                queue!(
+                    self.out,
+                    MoveTo(start_idx as u16, i as u16),
+                    Print(colored_str)
+                )?;
+                match color {
+                    BrushEvent::SetBG(color) => {
+                        queue!(self.out, SetBackgroundColor(*color))?;
+                        bg_prev_prev_color = bg_prev_color;
+                        bg_prev_color = Some(*color);        
+                    }
+                    BrushEvent::PreviousBG => {
+                        let bg_color = bg_prev_prev_color.expect("First brush event should never be PreviousBG");
+                        queue!(self.out, SetBackgroundColor(bg_color))?;
+                        bg_prev_prev_color = bg_prev_color;
+                        bg_prev_color = Some(bg_color);
+                    }
+                    BrushEvent::SetFG(color) => {
+                        queue!(self.out, SetForegroundColor(*color))?;
+                        fg_prev_prev_color = fg_prev_color;
+                        fg_prev_color = Some(*color);
+                    }
+                    BrushEvent::PreviousFG => {
+                        let fg_color = fg_prev_prev_color.expect("First brush event should never be PreviousBG");
+                        queue!(self.out, SetForegroundColor(fg_color))?;
+                        fg_prev_prev_color = fg_prev_color;
+                        fg_prev_color = Some(fg_color);
+                    }
+                };
+                start_idx = *idx;
+            }
         }
 
         self.flush()
@@ -110,7 +175,7 @@ impl<W: Write> Terminal<W> {
         queue!(self.out, Print(string))
     }
 
-    pub fn draw_buffer(&mut self, buffer: &Buffer) {
+    pub fn draw_buffer(&mut self, buffer: &Buffer, theme: &Theme) {
         let mut row_idx = buffer.y;
 
         let height = std::cmp::min(buffer.height, self.height);
@@ -122,6 +187,7 @@ impl<W: Write> Terminal<W> {
             .skip(buffer.scroll_y)
             .take(height as usize)
         {
+            let mut display_line = String::with_capacity(buffer.width as usize);
             if let Some(data) = buffer.data.data.get(*start..=*end) {
                 let line: String = data
                     .iter()
@@ -129,20 +195,53 @@ impl<W: Write> Terminal<W> {
                     .take(buffer.width as usize)
                     .filter(|c| **c != '\n')
                     .collect();
-                let mut display_line = String::with_capacity(buffer.width as usize);
                 display_line.push_str(&line);
-                display_line.fill_to_capacity(' ');
-                self.buffer[row_idx as usize].insert_str_at(buffer.x as usize, &display_line);
+            }
+            display_line.fill_to_capacity(' ');
+            self.buffer[row_idx as usize].insert_str_at(buffer.x as usize, &display_line);
+
+            match buffer.logic {
+                crate::buffer::BufferLogic::Editor => {
+                    self.brushes[row_idx as usize]
+                        .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.bg))));
+
+                    self.brushes[row_idx as usize]
+                        .push((buffer.x as usize, BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.text))));
+
+                    self.brushes[row_idx as usize]
+                        .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
+
+                    self.brushes[row_idx as usize]
+                        .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
+                }
+                crate::buffer::BufferLogic::InputBox => {
+                    self.brushes[row_idx as usize]
+                        .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.overlay.bg))));
+
+                    self.brushes[row_idx as usize]
+                        .push((buffer.x as usize, BrushEvent::SetFG(Theme::hex_to_color(&theme.overlay.text))));
+
+                    self.brushes[row_idx as usize]
+                        .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
+
+                    self.brushes[row_idx as usize]
+                        .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
+                }
+                crate::buffer::BufferLogic::Selector => todo!(),
             }
 
             row_idx += 1;
         }
     }
 
-    pub fn draw_status_line(&mut self, sl: &StatusLine) {
+    pub fn draw_status_line(&mut self, sl: &StatusLine, theme: &Theme) {
         let line = sl.get_line(self.width);
 
         self.buffer[self.height as usize - 1].insert_str_at(0, &line);
+        self.brushes[self.height as usize - 1].push((0, BrushEvent::SetBG(Theme::hex_to_color(&theme.status_line.bg))));
+        self.brushes[self.height as usize - 1].push((0, BrushEvent::SetFG(Theme::hex_to_color(&theme.status_line.text))));
+        self.brushes[self.height as usize - 1].push((self.width as usize, BrushEvent::PreviousBG));
+        self.brushes[self.height as usize - 1].push((self.width as usize, BrushEvent::PreviousFG));
     }
 
     pub fn draw_welcome_msg(&mut self) {
