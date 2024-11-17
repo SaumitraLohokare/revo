@@ -18,7 +18,7 @@ use crate::{
     buffer::{Buffer, Line},
     status_line::StatusLine,
     string::StringExt,
-    theme::Theme,
+    theme::Theme, vec_ext::VecExt,
 };
 
 enum BrushEvent {
@@ -31,7 +31,8 @@ enum BrushEvent {
 pub struct Terminal<W: Write> {
     pub width: u16,
     pub height: u16,
-    buffer: Vec<String>,
+    // buffer: Vec<String>,
+    buffer: Vec<Vec<char>>,
     brushes: Vec<Vec<(usize, BrushEvent)>>,
     out: W,
 }
@@ -43,9 +44,7 @@ impl<W: Write> Terminal<W> {
         let buffer = (0..size.1)
             .into_iter()
             .map(|_| {
-                let mut line = String::with_capacity(size.0 as usize);
-                line.fill_to_capacity(' ');
-                line
+                (0..size.0).map(|_| ' ').collect()
             })
             .collect();
 
@@ -73,9 +72,7 @@ impl<W: Write> Terminal<W> {
         self.buffer = (0..h)
             .into_iter()
             .map(|_| {
-                let mut line = String::with_capacity(w as usize);
-                line.fill_to_capacity(' ');
-                line
+                (0..w).map(|_| ' ').collect()
             })
             .collect();
 
@@ -118,6 +115,7 @@ impl<W: Write> Terminal<W> {
             let mut fg_prev_prev_color = None; // Hack... I wish there is a better way
             for (idx, color) in row_burshes {
                 let colored_str = &row[start_idx..*idx];
+                let colored_str: String = colored_str.into_iter().collect();
                 queue!(
                     self.out,
                     MoveTo(start_idx as u16, i as u16),
@@ -150,6 +148,7 @@ impl<W: Write> Terminal<W> {
                 start_idx = *idx;
             }
             let colored_str = &row[start_idx..];
+            let colored_str: String = colored_str.into_iter().collect();
             queue!(
                 self.out,
                 MoveTo(start_idx as u16, i as u16),
@@ -183,14 +182,15 @@ impl<W: Write> Terminal<W> {
 
     pub fn draw_buffer(&mut self, buffer: &Buffer, theme: &Theme) {
         let mut row_idx = buffer.y;
-        let buf_current_line = buffer.data.current_line() + row_idx as usize;
+        let buf_current_line = buffer.data.current_line();
 
         let height = std::cmp::min(buffer.height, self.height);
 
-        for Line { start, end } in buffer
+        for (line_num, Line { start, end }) in buffer
             .data
             .lines
             .iter()
+            .enumerate()
             .skip(buffer.scroll_y)
             .take(height as usize)
         {
@@ -209,7 +209,7 @@ impl<W: Write> Terminal<W> {
 
             match buffer.logic {
                 crate::buffer::BufferLogic::Editor => {
-                    if buf_current_line == row_idx as usize {
+                    if buf_current_line == line_num {
                         self.brushes[row_idx as usize]
                             .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.current_line))));
                     } else {

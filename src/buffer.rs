@@ -36,9 +36,9 @@ impl BufferData {
         buf_data
     }
 
-    pub fn from(data: Vec<u8>) -> Self {
+    pub fn from(data: String) -> Self {
         let data = data
-            .into_iter()
+            .chars()
             .map(|b| b as char)
             .filter(|c| *c != '\r')
             .collect();
@@ -232,7 +232,7 @@ impl Buffer {
         // Create an empty BufferData or populate it from the file
         let data = if path.is_file() {
             // If it's a file, read the file into a Vec<u8> and create a BufferData from it
-            let contents = fs::read(&path)?;
+            let contents = fs::read_to_string(&path)?;
             // Use the `BufferData::from` function to convert raw data into `BufferData`
             BufferData::from(contents)
         } else {

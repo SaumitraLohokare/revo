@@ -24,6 +24,7 @@ mod status_line;
 mod string;
 mod terminal;
 mod theme;
+mod vec_ext;
 
 fn main() {
     panic::set_hook(Box::new(|panic_info| {
