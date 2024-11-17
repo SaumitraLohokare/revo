@@ -176,6 +176,16 @@ impl BufferData {
             self.data.remove(self.cursor);
         }
     }
+
+    pub fn digits_in_line_num(&self) -> usize {
+        let mut max = self.lines.len();
+        let mut digits = 1; // start with a small gap
+        while max > 0 {
+            digits += 1;
+            max = max.saturating_div(10);
+        }
+        digits
+    }
 }
 
 // EditorBufferType
@@ -205,6 +215,7 @@ pub struct Buffer {
     pub file_path: Option<PathBuf>,
     read_only: bool,
     pub visible: bool,
+    pub line_numbers: bool,
 
     pub logic: BufferLogic,
 
@@ -240,6 +251,12 @@ impl Buffer {
             BufferData::new()
         };
 
+        let line_numbers = match logic {
+            BufferLogic::Editor => true,
+            BufferLogic::InputBox => false,
+            BufferLogic::Selector => false,
+        };
+
         // Create a new Buffer instance
         Ok(Self {
             id: Uuid::nil(),       // nil UUID
@@ -254,6 +271,7 @@ impl Buffer {
             file_path: Some(path), // Store the file path
             read_only: false,      // Default to not read-only
             visible: true,         // Default to visible
+            line_numbers,
             logic,                 // Default logic type is Editor
             msg_sender,            // Channel to send messages to editor
             paused_event_id: Uuid::nil(),
@@ -292,9 +310,15 @@ impl Buffer {
         let mut x = 0isize;
         let mut y = 0isize;
 
+        let line_numbers_offset = if self.line_numbers {
+            self.data.digits_in_line_num() as isize
+        } else {
+            0
+        };
+
         for Line { start, end } in self.data.lines.iter() {
             if *start <= self.data.cursor && *end >= self.data.cursor {
-                x = self.data.cursor as isize - *start as isize - self.scroll_x as isize;
+                x = self.data.cursor as isize - *start as isize - self.scroll_x as isize + line_numbers_offset;
 
                 return (
                     x + self.x as isize,
@@ -313,7 +337,7 @@ impl Buffer {
 
         (
             last_line.end as isize - last_line.start as isize + 1 + self.x as isize
-                - self.scroll_x as isize,
+                - self.scroll_x as isize + line_numbers_offset,
             y - 1 - self.scroll_y as isize + self.y as isize,
         )
     }

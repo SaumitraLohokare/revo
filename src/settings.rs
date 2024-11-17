@@ -4,7 +4,7 @@ use std::{env, fs, io};
 
 use serde::{Deserialize, Serialize};
 
-use crate::theme::{default_theme, Theme};
+use crate::theme::Theme;
 
 fn get_user_home_dir() -> Option<PathBuf> {
     if cfg!(target_os = "windows") {
@@ -50,7 +50,7 @@ pub fn read_editor_settings() -> io::Result<Settings> {
 
     let settings_schema = if !settings_file_path.exists() {
         // Generate default settings
-        let default_settings = default_settings_schema();
+        let default_settings = SettingsSchema::default();
         
         // Save settings
         let default_settings_str = serde_json::to_string_pretty(&default_settings).unwrap();
@@ -69,7 +69,7 @@ pub fn read_editor_settings() -> io::Result<Settings> {
         // Create themes folder
         fs::create_dir_all(&themes_path)?;
         // Generate default Theme
-        let default_theme = default_theme();
+        let default_theme = Theme::default();
         // Save to folder
         let mut default_theme_file_path = themes_path;
         default_theme_file_path.push("default.json");
@@ -107,9 +107,11 @@ struct SettingsSchema {
     // Add settings in here
 }
 
-fn default_settings_schema() -> SettingsSchema {
-    SettingsSchema {
-        active_theme: "default".to_string(),
+impl Default for SettingsSchema {
+    fn default() -> Self {
+        SettingsSchema {
+            active_theme: "default".to_string(),
+        }
     }
 }
 

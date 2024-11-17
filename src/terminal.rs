@@ -15,10 +15,11 @@ use crossterm::{
 };
 
 use crate::{
-    buffer::{Buffer, Line},
+    buffer::{Buffer, BufferLogic, Line},
     status_line::StatusLine,
     string::StringExt,
-    theme::Theme, vec_ext::VecExt,
+    theme::Theme,
+    vec_ext::VecExt,
 };
 
 enum BrushEvent {
@@ -43,9 +44,7 @@ impl<W: Write> Terminal<W> {
 
         let buffer = (0..size.1)
             .into_iter()
-            .map(|_| {
-                (0..size.0).map(|_| ' ').collect()
-            })
+            .map(|_| (0..size.0).map(|_| ' ').collect())
             .collect();
 
         let brushes = (0..size.1).into_iter().map(|_| vec![]).collect();
@@ -71,9 +70,7 @@ impl<W: Write> Terminal<W> {
 
         self.buffer = (0..h)
             .into_iter()
-            .map(|_| {
-                (0..w).map(|_| ' ').collect()
-            })
+            .map(|_| (0..w).map(|_| ' ').collect())
             .collect();
 
         self.brushes = (0..h).into_iter().map(|_| vec![]).collect();
@@ -92,7 +89,10 @@ impl<W: Write> Terminal<W> {
         for brush in self.brushes.iter_mut() {
             brush.clear();
             brush.push((0, BrushEvent::SetBG(Theme::hex_to_color(&theme.ui.base_bg))));
-            brush.push((0, BrushEvent::SetFG(Theme::hex_to_color(&theme.ui.base_text))));
+            brush.push((
+                0,
+                BrushEvent::SetFG(Theme::hex_to_color(&theme.ui.base_text)),
+            ));
         }
 
         queue!(self.out, ResetColor, Hide)
@@ -125,10 +125,11 @@ impl<W: Write> Terminal<W> {
                     BrushEvent::SetBG(color) => {
                         queue!(self.out, SetBackgroundColor(*color))?;
                         bg_prev_prev_color = bg_prev_color;
-                        bg_prev_color = Some(*color);        
+                        bg_prev_color = Some(*color);
                     }
                     BrushEvent::PreviousBG => {
-                        let bg_color = bg_prev_prev_color.expect("First brush event should never be PreviousBG");
+                        let bg_color = bg_prev_prev_color
+                            .expect("First brush event should never be PreviousBG");
                         queue!(self.out, SetBackgroundColor(bg_color))?;
                         bg_prev_prev_color = bg_prev_color;
                         bg_prev_color = Some(bg_color);
@@ -139,7 +140,8 @@ impl<W: Write> Terminal<W> {
                         fg_prev_color = Some(*color);
                     }
                     BrushEvent::PreviousFG => {
-                        let fg_color = fg_prev_prev_color.expect("First brush event should never be PreviousBG");
+                        let fg_color = fg_prev_prev_color
+                            .expect("First brush event should never be PreviousBG");
                         queue!(self.out, SetForegroundColor(fg_color))?;
                         fg_prev_prev_color = fg_prev_color;
                         fg_prev_color = Some(fg_color);
@@ -184,6 +186,8 @@ impl<W: Write> Terminal<W> {
         let mut row_idx = buffer.y;
         let buf_current_line = buffer.data.current_line();
 
+        let digits_in_line_nums = buffer.data.digits_in_line_num();
+
         let height = std::cmp::min(buffer.height, self.height);
 
         for (line_num, Line { start, end }) in buffer
@@ -195,30 +199,65 @@ impl<W: Write> Terminal<W> {
             .take(height as usize)
         {
             let mut display_line = String::with_capacity(buffer.width as usize);
+
+            let mut chars_to_take = buffer.width as usize;
+
+            if buffer.line_numbers {
+                chars_to_take = chars_to_take.saturating_sub(digits_in_line_nums);
+
+                let mut line_num_str = String::with_capacity(digits_in_line_nums);
+                let spaces = (digits_in_line_nums - 1) - ((line_num + 1).ilog10() + 1) as usize;
+                line_num_str.push_str(&" ".repeat(spaces));
+                line_num_str.push_str(&(line_num + 1).to_string());
+                line_num_str.fill_to_capacity(' '); // fill the gap at the end
+    
+                display_line.push_str(&line_num_str);
+            }
+
             if let Some(data) = buffer.data.data.get(*start..=*end) {
                 let line: String = data
                     .iter()
                     .skip(buffer.scroll_x)
-                    .take(buffer.width as usize)
+                    .take(chars_to_take)
                     .filter(|c| **c != '\n')
                     .collect();
+
                 display_line.push_str(&line);
             }
+
             display_line.fill_to_capacity(' ');
             self.buffer[row_idx as usize].insert_str_at(buffer.x as usize, &display_line);
 
             match buffer.logic {
-                crate::buffer::BufferLogic::Editor => {
+                BufferLogic::Editor => {
                     if buf_current_line == line_num {
-                        self.brushes[row_idx as usize]
-                            .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.current_line))));
+                        self.brushes[row_idx as usize].push((
+                            buffer.x as usize,
+                            BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.current_line)),
+                        ));
                     } else {
-                        self.brushes[row_idx as usize]
-                            .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.bg))));
+                        self.brushes[row_idx as usize].push((
+                            buffer.x as usize,
+                            BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.bg)),
+                        ));
                     }
 
-                    self.brushes[row_idx as usize]
-                        .push((buffer.x as usize, BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.text))));
+                    if buffer.line_numbers {
+                        self.brushes[row_idx as usize].push((
+                            buffer.x as usize,
+                            BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.line_numbers)),
+                        ));
+    
+                        self.brushes[row_idx as usize].push((
+                            (buffer.x as usize + digits_in_line_nums),
+                            BrushEvent::PreviousFG,
+                        ));
+                    }
+
+                    self.brushes[row_idx as usize].push((
+                        buffer.x as usize + digits_in_line_nums,
+                        BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.text)),
+                    ));
 
                     self.brushes[row_idx as usize]
                         .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
@@ -226,12 +265,16 @@ impl<W: Write> Terminal<W> {
                     self.brushes[row_idx as usize]
                         .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
                 }
-                crate::buffer::BufferLogic::InputBox => {
-                    self.brushes[row_idx as usize]
-                        .push((buffer.x as usize, BrushEvent::SetBG(Theme::hex_to_color(&theme.overlay.bg))));
+                BufferLogic::InputBox => {
+                    self.brushes[row_idx as usize].push((
+                        buffer.x as usize,
+                        BrushEvent::SetBG(Theme::hex_to_color(&theme.overlay.bg)),
+                    ));
 
-                    self.brushes[row_idx as usize]
-                        .push((buffer.x as usize, BrushEvent::SetFG(Theme::hex_to_color(&theme.overlay.text))));
+                    self.brushes[row_idx as usize].push((
+                        buffer.x as usize,
+                        BrushEvent::SetFG(Theme::hex_to_color(&theme.overlay.text)),
+                    ));
 
                     self.brushes[row_idx as usize]
                         .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
@@ -239,7 +282,7 @@ impl<W: Write> Terminal<W> {
                     self.brushes[row_idx as usize]
                         .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
                 }
-                crate::buffer::BufferLogic::Selector => todo!(),
+                BufferLogic::Selector => todo!(),
             }
 
             row_idx += 1;
@@ -250,8 +293,14 @@ impl<W: Write> Terminal<W> {
         let line = sl.get_line(self.width);
 
         self.buffer[self.height as usize - 1].insert_str_at(0, &line);
-        self.brushes[self.height as usize - 1].push((0, BrushEvent::SetBG(Theme::hex_to_color(&theme.status_line.bg))));
-        self.brushes[self.height as usize - 1].push((0, BrushEvent::SetFG(Theme::hex_to_color(&theme.status_line.text))));
+        self.brushes[self.height as usize - 1].push((
+            0,
+            BrushEvent::SetBG(Theme::hex_to_color(&theme.status_line.bg)),
+        ));
+        self.brushes[self.height as usize - 1].push((
+            0,
+            BrushEvent::SetFG(Theme::hex_to_color(&theme.status_line.text)),
+        ));
         self.brushes[self.height as usize - 1].push((self.width as usize, BrushEvent::PreviousBG));
         self.brushes[self.height as usize - 1].push((self.width as usize, BrushEvent::PreviousFG));
     }

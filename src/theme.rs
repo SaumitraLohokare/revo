@@ -32,6 +32,8 @@ pub struct EditorColors {
     pub string_literal: String,
     #[serde(rename = "number_literal")]
     pub number_literal: String,
+    #[serde(rename = "line_numbers")]
+    pub line_numbers: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,29 +52,32 @@ pub struct StatusLineColors {
     pub text: String,
 }
 
-pub fn default_theme() -> Theme {
-    Theme {
-        ui: UIColors {
-            base_bg: "#1a1d23".to_string(),  // Darker background for the UI
-            base_text: "#e0e0e0".to_string(), // Light gray for text
-        },
-        editor: EditorColors {
-            bg: "#1f2329".to_string(),          // Darker background for editor
-            current_line: "#333b47".to_string(), // Slightly lighter for the current line
-            text: "#eaeaea".to_string(),         // Light text color
-            comments: "#4b8b3b".to_string(),     // Darker green for comments
-            keywords: "#FFA500".to_string(),     // Yellowish orange for keywords
-            string_literal: "#6a9955".to_string(), // Green for strings
-            number_literal: "#bd93f9".to_string(), // Purple for numbers
-        },
-        overlay: OverlayColors {
-            bg: "#282c34".to_string(),  // Dark background for overlays
-            text: "#f8f8f2".to_string(), // Light text for overlays
-        },
-        status_line: StatusLineColors {
-            bg: "#3b4048".to_string(),  // Status line background (darker)
-            text: "#ffffff".to_string(), // White text for status line
-        },
+impl Default for Theme {
+    fn default() -> Self {
+        Theme {
+            ui: UIColors {
+                base_bg: "#1a1d23".to_string(),  // Original dark background for UI
+                base_text: "#e0e0e0".to_string(), // Soft light text color
+            },
+            editor: EditorColors {
+                bg: "#1f2329".to_string(),          // Keeping the dark background for the editor
+                current_line: "#333b47".to_string(), // Slightly lighter for the current line
+                text: "#eaeaea".to_string(),         // Soft light gray text
+                comments: "#6d7f6d".to_string(),     // Muted, darker pastel green for comments
+                keywords: "#FFA07A".to_string(),     // Soft orangish pastel for keywords
+                string_literal: "#98c379".to_string(), // Gentle pastel green for string literals
+                number_literal: "#a6a9d6".to_string(), // Soft pastel purple for numbers
+                line_numbers: "#767f8c".to_string(), // Darker, softer color for line numbers
+            },
+            overlay: OverlayColors {
+                bg: "#282c34".to_string(),  // Dark background for overlays
+                text: "#f8f8f2".to_string(), // Soft off-white text for overlays
+            },
+            status_line: StatusLineColors {
+                bg: "#3b4048".to_string(),  // Subtle dark gray for status line background
+                text: "#ffffff".to_string(), // White text for status line
+            },
+        }
     }
 }
 
