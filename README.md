@@ -8,6 +8,10 @@
 - [x] Save & Save As
 - [x] Basic Settings and Theme support
 - [ ] Buffer Decorations
+- [ ] File Explorer
+- [ ] Buffer Splits
+- [ ] General UX
+- [ ] Code clean up + Tests
 
 ## Bugs
 
