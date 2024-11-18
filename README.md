@@ -8,8 +8,8 @@
 - [x] Save & Save As
 - [x] Basic Settings and Theme support
 - [ ] Buffer Decorations
+- [ ] Split Support
 - [ ] File Explorer
-- [ ] Buffer Splits
 - [ ] General UX
 - [ ] Code clean up + Tests
 
@@ -17,6 +17,9 @@
 
 
 ## Improvements
+
+- Can reduce string allocation for line numbers in `draw_buffer` by allocating one string 
+  before the loop, and reusing it inside.
 
 - Update `BufferData` API to be self contained. So that in the future if we decide to
   change the implementation of how we represent the data, nothing else needs to be updated.
