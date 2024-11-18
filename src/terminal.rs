@@ -18,7 +18,7 @@ use crate::{
     buffer::{Buffer, BufferLogic, Line, Padding},
     status_line::StatusLine,
     string::StringExt,
-    theme::{self, Theme},
+    theme::Theme,
     vec_ext::VecExt,
 };
 
@@ -293,8 +293,9 @@ impl<W: Write> Terminal<W> {
                     }
 
                     if buffer.line_numbers {
+                        let border_gap = if buffer.bordered { 1 } else { 0 };
                         self.brushes[row_idx].push((
-                            buffer.x as usize + 1,
+                            buffer.x as usize + border_gap,
                             BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.line_numbers)),
                         ));
 
