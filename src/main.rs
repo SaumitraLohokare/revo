@@ -148,7 +148,7 @@ fn parse_args(
         let y = 0;
 
         // Return the Buffer inside an Option, or None if there was an error
-        Buffer::new(path, x, y, width, height, BufferLogic::Editor, msg_sender).map(|b| Some(b))
+        Buffer::new(path, x, y, width, height, false, BufferLogic::Editor, "", msg_sender).map(|b| Some(b))
     }
 }
 

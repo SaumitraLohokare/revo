@@ -198,6 +198,13 @@ pub enum BufferLogic {
     Selector,
 }
 
+pub struct Padding {
+    pub top: usize,
+    pub right: usize,
+    pub bottom: usize,
+    pub left: usize,
+}
+
 pub struct Buffer {
     pub id: Uuid,
     pub is_overlay: bool,
@@ -216,6 +223,9 @@ pub struct Buffer {
     read_only: bool,
     pub visible: bool,
     pub line_numbers: bool,
+    pub bordered: bool,
+    pub top_border: String,
+    pub bottom_border: String,
 
     pub logic: BufferLogic,
 
@@ -230,7 +240,9 @@ impl Buffer {
         y: u16,
         width: u16,
         height: u16,
+        bordered: bool,
         logic: BufferLogic,
+        title: &str,
         msg_sender: Sender<EditorEvent>,
     ) -> io::Result<Self> {
         if path.exists() && !path.is_file() {
@@ -257,6 +269,27 @@ impl Buffer {
             BufferLogic::Selector => false,
         };
 
+        let top_border = if bordered {
+            let mut s = String::from('╭');
+            s.push_str(title);
+            let border_dash_len = (width - 2) as usize - title.len();
+            s.push_str(&"─".repeat(border_dash_len));
+            s.push('╮');
+            s
+        } else {
+            String::new()
+        };
+
+        let bottom_border = if bordered {
+            let mut s = String::from('╰');
+            let border_dash_len = (width - 2) as usize;
+            s.push_str(&"─".repeat(border_dash_len));
+            s.push('╯');
+            s
+        } else {
+            String::new()
+        };
+
         // Create a new Buffer instance
         Ok(Self {
             id: Uuid::nil(),       // nil UUID
@@ -272,10 +305,30 @@ impl Buffer {
             read_only: false,      // Default to not read-only
             visible: true,         // Default to visible
             line_numbers,
-            logic,                 // Default logic type is Editor
-            msg_sender,            // Channel to send messages to editor
+            bordered,
+            top_border,
+            bottom_border,
+            logic,      // Default logic type is Editor
+            msg_sender, // Channel to send messages to editor
             paused_event_id: Uuid::nil(),
         })
+    }
+
+    pub fn padding(&self) -> Padding {
+        let line_numbers_offset = if self.line_numbers {
+            self.data.digits_in_line_num()
+        } else {
+            0
+        };
+
+        let border_offset = if self.bordered { 1 } else { 0 };
+
+        Padding {
+            top: border_offset,
+            right: border_offset,
+            bottom: border_offset,
+            left: border_offset + line_numbers_offset,
+        }
     }
 
     pub fn set_paused_event_id(&mut self, id: Uuid) {
@@ -310,19 +363,16 @@ impl Buffer {
         let mut x = 0isize;
         let mut y = 0isize;
 
-        let line_numbers_offset = if self.line_numbers {
-            self.data.digits_in_line_num() as isize
-        } else {
-            0
-        };
+        let Padding { left, top, .. } = self.padding();
 
         for Line { start, end } in self.data.lines.iter() {
             if *start <= self.data.cursor && *end >= self.data.cursor {
-                x = self.data.cursor as isize - *start as isize - self.scroll_x as isize + line_numbers_offset;
+                x = self.data.cursor as isize - *start as isize - self.scroll_x as isize
+                    + left as isize;
 
                 return (
                     x + self.x as isize,
-                    y - self.scroll_y as isize + self.y as isize,
+                    y - self.scroll_y as isize + self.y as isize + top as isize,
                 );
             } else {
                 y += 1;
@@ -337,8 +387,9 @@ impl Buffer {
 
         (
             last_line.end as isize - last_line.start as isize + 1 + self.x as isize
-                - self.scroll_x as isize + line_numbers_offset,
-            y - 1 - self.scroll_y as isize + self.y as isize,
+                - self.scroll_x as isize
+                + left as isize,
+            y - 1 - self.scroll_y as isize + self.y as isize + top as isize,
         )
     }
 
@@ -369,31 +420,27 @@ impl Buffer {
 
     pub fn scroll(&mut self) {
         let (x, y) = self.cursor_xy();
-        let (w, h) = (self.width, self.height);
 
-        let line_numbers_offset = if self.line_numbers {
-            self.data.digits_in_line_num() as isize
-        } else {
-            0
-        };
+        let Padding { top, right, bottom, left } = self.padding();
 
-        let y = y - self.y as isize;
-        let x = x - self.x as isize - line_numbers_offset;
+        let left_bound = self.x as isize + left as isize;
+        let right_bound = (self.x + self.width) as isize - right as isize;
+        let top_bound = self.y as isize + top as isize;
+        let bot_bound = (self.y + self.height) as isize - bottom as isize;
 
-        if y < 0 {
-            let dy = (-y) as usize;
-            assert!(self.scroll_y >= dy);
-            self.scroll_y -= dy; // NOTE: This could lead to overflow
-        } else if y >= h as isize {
-            let dy = y - h as isize + 1;
+        if y < top_bound {
+            let dy = top_bound.saturating_sub(y) as usize;
+            self.scroll_y = self.scroll_y.saturating_sub(dy);
+        } else if y >= bot_bound {
+            let dy = y - bot_bound + 1;
             self.scroll_y += dy as usize;
         }
 
-        if x < 0 {
-            let dx = (-x) as usize;
-            self.scroll_x -= dx;
-        } else if x >= w as isize {
-            let dx = x - w as isize + 1;
+        if x < left_bound {
+            let dx = left_bound.saturating_sub(x) as usize;
+            self.scroll_x = self.scroll_x.saturating_sub(dx);
+        } else if x >= right_bound {
+            let dx = x - right_bound + 1;
             self.scroll_x += dx as usize;
         }
     }

@@ -189,8 +189,8 @@ impl<W: Write> Editor<W> {
                 });
 
                 // Open up a new overlay
-                let width = 30;
-                let height = 1;
+                let width = 32;
+                let height = 3;
                 let x = (self.terminal.width / 2).saturating_sub(width / 2);
                 let y = (self.terminal.height / 2).saturating_sub(height);
 
@@ -200,7 +200,9 @@ impl<W: Write> Editor<W> {
                     y,
                     width,
                     height,
+                    true,
                     BufferLogic::InputBox,
+                    "Save As",
                     self.sender_copy.clone(),
                 )?;
                 overlay.set_paused_event_id(paused_event_id);

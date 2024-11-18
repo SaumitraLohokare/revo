@@ -2,6 +2,7 @@
 
 pub trait StringExt {
     fn fill_to_capacity(&mut self, c: char);
+    fn fill_to(&mut self, index: usize, with: char);
 }
 
 impl StringExt for String {
@@ -9,6 +10,11 @@ impl StringExt for String {
     fn fill_to_capacity(&mut self, c: char) {
         for _ in self.len()..self.capacity() {
             self.push(c);
+        }
+    }
+    fn fill_to(&mut self, index: usize, with: char) {
+        for _ in self.len()..index {
+            self.push(with);
         }
     }
 }

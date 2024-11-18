@@ -15,10 +15,10 @@ use crossterm::{
 };
 
 use crate::{
-    buffer::{Buffer, BufferLogic, Line},
+    buffer::{Buffer, BufferLogic, Line, Padding},
     status_line::StatusLine,
     string::StringExt,
-    theme::Theme,
+    theme::{self, Theme},
     vec_ext::VecExt,
 };
 
@@ -183,12 +183,53 @@ impl<W: Write> Terminal<W> {
     }
 
     pub fn draw_buffer(&mut self, buffer: &Buffer, theme: &Theme) {
-        let mut row_idx = buffer.y;
+        let Padding {
+            top,
+            right,
+            bottom,
+            left,
+        } = buffer.padding();
+
+        let mut row_idx = buffer.y as usize + top;
+        let start_x = buffer.x as usize + left;
         let buf_current_line = buffer.data.current_line();
 
-        let digits_in_line_nums = buffer.data.digits_in_line_num();
+        let digits_in_line_nums = if buffer.line_numbers {
+            buffer.data.digits_in_line_num()
+        } else {
+            0
+        };
 
         let height = std::cmp::min(buffer.height, self.height);
+
+        let border_bg_color = match buffer.is_overlay {
+            true => &theme.overlay.bg,
+            false => &theme.editor.bg,
+        };
+        let border_fg_color = match buffer.is_overlay {
+            true => &theme.overlay.text,
+            false => &theme.editor.text,
+        };
+
+        if buffer.bordered {
+            self.buffer[buffer.y as usize].insert_str_at(buffer.x as usize, &buffer.top_border);
+
+            self.brushes[buffer.y as usize].push((
+                buffer.x as usize,
+                BrushEvent::SetBG(Theme::hex_to_color(border_bg_color)),
+            ));
+
+            self.brushes[buffer.y as usize]
+                .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
+
+            self.brushes[buffer.y as usize].push((
+                buffer.x as usize,
+                BrushEvent::SetFG(Theme::hex_to_color(border_fg_color)),
+            ));
+
+            self.brushes[buffer.y as usize]
+                .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
+        }
 
         for (line_num, Line { start, end }) in buffer
             .data
@@ -196,21 +237,23 @@ impl<W: Write> Terminal<W> {
             .iter()
             .enumerate()
             .skip(buffer.scroll_y)
-            .take(height as usize)
+            .take((height as usize).saturating_sub(bottom + top))
         {
             let mut display_line = String::with_capacity(buffer.width as usize);
+            if buffer.bordered {
+                display_line.push('│');
+            }
 
-            let mut chars_to_take = buffer.width as usize;
+            let chars_to_take = buffer.width as usize - left - right;
 
             if buffer.line_numbers {
-                chars_to_take = chars_to_take.saturating_sub(digits_in_line_nums);
-
-                let mut line_num_str = String::with_capacity(digits_in_line_nums);
-                let spaces = (digits_in_line_nums - 1) - ((line_num + 1).ilog10() + 1) as usize;
+                let mut line_num_str = String::with_capacity(digits_in_line_nums); // TODO: put a gap here
+                let spaces = (digits_in_line_nums - 1)
+                    .saturating_sub(((line_num + 1).ilog10() + 1) as usize);
                 line_num_str.push_str(&" ".repeat(spaces));
                 line_num_str.push_str(&(line_num + 1).to_string());
                 line_num_str.fill_to_capacity(' '); // fill the gap at the end
-    
+
                 display_line.push_str(&line_num_str);
             }
 
@@ -225,67 +268,91 @@ impl<W: Write> Terminal<W> {
                 display_line.push_str(&line);
             }
 
-            display_line.fill_to_capacity(' ');
-            self.buffer[row_idx as usize].insert_str_at(buffer.x as usize, &display_line);
+            let num_chars = display_line.chars().count();
+            let spaces_to_add = (buffer.width as usize).saturating_sub(num_chars);
+            display_line.push_str(&" ".repeat(spaces_to_add));
+            if buffer.bordered {
+                display_line.pop();
+                display_line.push('│');
+            }
+
+            self.buffer[row_idx].insert_str_at(buffer.x as usize, &display_line);
 
             match buffer.logic {
                 BufferLogic::Editor => {
                     if buf_current_line == line_num {
-                        self.brushes[row_idx as usize].push((
+                        self.brushes[row_idx].push((
                             buffer.x as usize,
                             BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.current_line)),
                         ));
                     } else {
-                        self.brushes[row_idx as usize].push((
+                        self.brushes[row_idx].push((
                             buffer.x as usize,
                             BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.bg)),
                         ));
                     }
 
                     if buffer.line_numbers {
-                        self.brushes[row_idx as usize].push((
-                            buffer.x as usize,
+                        self.brushes[row_idx].push((
+                            buffer.x as usize + 1,
                             BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.line_numbers)),
                         ));
-    
-                        self.brushes[row_idx as usize].push((
-                            (buffer.x as usize + digits_in_line_nums),
-                            BrushEvent::PreviousFG,
-                        ));
+
+                        self.brushes[row_idx].push((start_x, BrushEvent::PreviousFG));
                     }
 
-                    self.brushes[row_idx as usize].push((
-                        buffer.x as usize + digits_in_line_nums,
+                    self.brushes[row_idx].push((
+                        start_x,
                         BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.text)),
                     ));
 
-                    self.brushes[row_idx as usize]
+                    self.brushes[row_idx]
                         .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
 
-                    self.brushes[row_idx as usize]
+                    self.brushes[row_idx]
                         .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
                 }
                 BufferLogic::InputBox => {
-                    self.brushes[row_idx as usize].push((
+                    self.brushes[row_idx].push((
                         buffer.x as usize,
                         BrushEvent::SetBG(Theme::hex_to_color(&theme.overlay.bg)),
                     ));
 
-                    self.brushes[row_idx as usize].push((
+                    self.brushes[row_idx].push((
                         buffer.x as usize,
                         BrushEvent::SetFG(Theme::hex_to_color(&theme.overlay.text)),
                     ));
 
-                    self.brushes[row_idx as usize]
+                    self.brushes[row_idx]
                         .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
 
-                    self.brushes[row_idx as usize]
+                    self.brushes[row_idx]
                         .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
                 }
                 BufferLogic::Selector => todo!(),
             }
 
             row_idx += 1;
+        }
+
+        if buffer.bordered {
+            self.buffer[row_idx].insert_str_at(buffer.x as usize, &buffer.bottom_border);
+
+            self.brushes[row_idx].push((
+                buffer.x as usize,
+                BrushEvent::SetBG(Theme::hex_to_color(border_bg_color)),
+            ));
+
+            self.brushes[row_idx]
+                .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
+
+            self.brushes[row_idx].push((
+                buffer.x as usize,
+                BrushEvent::SetFG(Theme::hex_to_color(border_fg_color)),
+            ));
+
+            self.brushes[row_idx]
+                .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
         }
     }
 
