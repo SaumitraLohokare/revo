@@ -8,7 +8,8 @@
 - [x] Double Buffering in Terminal
 - [x] Save & Save As
 - [x] Basic Settings and Theme support
-- [ ] Buffer Decorations
+- [x] Buffer Decorations
+- [ ] Code clean up
 - [ ] Split Support
 - [ ] File Explorer
 - [ ] General UX
