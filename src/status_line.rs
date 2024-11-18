@@ -18,8 +18,9 @@ impl StatusLine {
     }
 
     pub fn update_cursor_pos(&mut self, cursor_pos: (usize, usize)) {
-        self.cursor_x = cursor_pos.0;
-        self.cursor_y = cursor_pos.1;
+        // We show line numbers starting from 1 so cursor position should also be starting from 1
+        self.cursor_x = cursor_pos.0 + 1;
+        self.cursor_y = cursor_pos.1 + 1;
     }
 
     pub fn get_line(&self, width: u16) -> String {
