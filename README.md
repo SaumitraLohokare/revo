@@ -1,6 +1,7 @@
 # Revo
 
-![screenshot](./assets/application_ss.png)
+![screenshot dark](./assets/dark_ss.png)
+![screenshot light](./assets/light_ss.png)
 
 ## Milestones
 
