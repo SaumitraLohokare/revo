@@ -371,8 +371,14 @@ impl Buffer {
         let (x, y) = self.cursor_xy();
         let (w, h) = (self.width, self.height);
 
+        let line_numbers_offset = if self.line_numbers {
+            self.data.digits_in_line_num() as isize
+        } else {
+            0
+        };
+
         let y = y - self.y as isize;
-        let x = x - self.x as isize;
+        let x = x - self.x as isize - line_numbers_offset;
 
         if y < 0 {
             let dy = (-y) as usize;
