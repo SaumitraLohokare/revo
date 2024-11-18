@@ -5,9 +5,10 @@ pub trait StringExt {
 }
 
 impl StringExt for String {
-    /// Fills the string from `length` to `capacity` with given character.
+    /// Fills the string from `length` to `capacity` with given character. 
+    /// If the given character is a multi-byte UTF-8 Code point, it will try to fill as many as possible without going over the string's capacity.
     fn fill_to_capacity(&mut self, c: char) {
-        for _ in self.len()..self.capacity() {
+        while self.len() + c.len_utf8() < self.capacity() {
             self.push(c);
         }
     }

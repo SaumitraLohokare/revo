@@ -21,7 +21,7 @@ mod buffer;
 mod editor;
 mod settings;
 mod status_line;
-mod string;
+mod string_ext;
 mod terminal;
 mod theme;
 mod vec_ext;

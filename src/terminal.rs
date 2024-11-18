@@ -17,7 +17,7 @@ use crossterm::{
 use crate::{
     buffer::{Buffer, BufferLogic, Line, Padding},
     status_line::StatusLine,
-    string::StringExt,
+    string_ext::StringExt,
     theme::Theme,
     vec_ext::VecExt,
 };
@@ -212,7 +212,7 @@ impl<W: Write> Terminal<W> {
         };
 
         if buffer.bordered {
-            self.buffer[buffer.y as usize].insert_str_at(buffer.x as usize, &buffer.top_border);
+            self.buffer[buffer.y as usize].replace_from(buffer.x as usize, &buffer.top_border);
 
             self.brushes[buffer.y as usize].push((
                 buffer.x as usize,
@@ -247,7 +247,7 @@ impl<W: Write> Terminal<W> {
             let chars_to_take = buffer.width as usize - left - right;
 
             if buffer.line_numbers {
-                let mut line_num_str = String::with_capacity(digits_in_line_nums); // TODO: put a gap here
+                let mut line_num_str = String::with_capacity(digits_in_line_nums);
                 let spaces = (digits_in_line_nums - 1)
                     .saturating_sub(((line_num + 1).ilog10() + 1) as usize);
                 line_num_str.push_str(&" ".repeat(spaces));
@@ -276,7 +276,7 @@ impl<W: Write> Terminal<W> {
                 display_line.push('│');
             }
 
-            self.buffer[row_idx].insert_str_at(buffer.x as usize, &display_line);
+            self.buffer[row_idx].replace_from(buffer.x as usize, &display_line);
 
             match buffer.logic {
                 BufferLogic::Editor => {
@@ -337,7 +337,7 @@ impl<W: Write> Terminal<W> {
         }
 
         if buffer.bordered {
-            self.buffer[row_idx].insert_str_at(buffer.x as usize, &buffer.bottom_border);
+            self.buffer[row_idx].replace_from(buffer.x as usize, &buffer.bottom_border);
 
             self.brushes[row_idx].push((
                 buffer.x as usize,
@@ -360,7 +360,7 @@ impl<W: Write> Terminal<W> {
     pub fn draw_status_line(&mut self, sl: &StatusLine, theme: &Theme) {
         let line = sl.get_line(self.width);
 
-        self.buffer[self.height as usize - 1].insert_str_at(0, &line);
+        self.buffer[self.height as usize - 1].replace_from(0, &line);
         self.brushes[self.height as usize - 1].push((
             0,
             BrushEvent::SetBG(Theme::hex_to_color(&theme.status_line.bg)),
@@ -383,7 +383,7 @@ impl<W: Write> Terminal<W> {
             let line_x = x_center - (line.len() / 2);
             let line_y = (y_center as i16 + (i as i16 - msg.len() as i16 / 2)) as usize;
 
-            self.buffer[line_y].insert_str_at(line_x as usize, line);
+            self.buffer[line_y].replace_from(line_x as usize, line);
         }
     }
 

@@ -232,7 +232,9 @@ impl<W: Write> Editor<W> {
             BufferEvent::Close { id, is_overlay } => {
                 if is_overlay {
                     self.close_overlay(id);
-                } // TODO: Add for non-overlay
+                } else {
+                    todo!("Add closing for normal buffers");
+                }
             }
             BufferEvent::ResumeEvent {
                 paused_event_id,
