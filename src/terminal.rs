@@ -17,7 +17,6 @@ use crossterm::{
 use crate::{
     buffer::{Buffer, BufferLogic, Line, Padding},
     status_line::StatusLine,
-    string_ext::StringExt,
     theme::Theme,
     vec_ext::VecExt,
 };
@@ -252,7 +251,7 @@ impl<W: Write> Terminal<W> {
                     .saturating_sub(((line_num + 1).ilog10() + 1) as usize);
                 line_num_str.push_str(&" ".repeat(spaces));
                 line_num_str.push_str(&(line_num + 1).to_string());
-                line_num_str.fill_to_capacity(' '); // fill the gap at the end
+                line_num_str.push(' '); // fill the gap at the end
 
                 display_line.push_str(&line_num_str);
             }
