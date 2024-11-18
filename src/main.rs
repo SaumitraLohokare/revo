@@ -73,12 +73,16 @@ fn run() -> io::Result<()> {
             let id = editor.add_buffer(buf);
             editor.activate_buffer(id);
         }
-        None => editor.terminal.draw_welcome_msg(),
+        None => editor.terminal.draw_welcome_msg(), // TODO: Maybe we can put this into editor.draw_buffers, If there are no buffers we draw this
     }
 
+    // TODO: If we add Focus as a stack in the Editor, this can get called on FocusChange Events
     editor.update_status_line_file();
 
+    // TODO: Maybe move this into a function inside editor
     loop {
+        // TODO: Maybe make it so that we onlly draw when correct events are triggered
+        // 		 Drawing on ALL events is a waste (such as Save...)
         if let Ok(event) = recv.recv() {
             match event {
                 EditorEvent::Input(event) => match event {
@@ -118,6 +122,7 @@ fn run() -> io::Result<()> {
     Ok(())
 }
 
+// TODO: Instead of adding a Buffer in here, we could create a new EditorEvent::OpenFile
 fn parse_args(
     width: u16,
     height: u16,
@@ -148,7 +153,18 @@ fn parse_args(
         let y = 0;
 
         // Return the Buffer inside an Option, or None if there was an error
-        Buffer::new(path, x, y, width, height, false, BufferLogic::Editor, "", msg_sender).map(|b| Some(b))
+        Buffer::new(
+            path,
+            x,
+            y,
+            width,
+            height,
+            false,
+            BufferLogic::Editor,
+            "",
+            msg_sender,
+        )
+        .map(|b| Some(b))
     }
 }
 

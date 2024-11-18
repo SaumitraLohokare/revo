@@ -2,7 +2,6 @@
 
 pub trait StringExt {
     fn fill_to_capacity(&mut self, c: char);
-    fn fill_to(&mut self, index: usize, with: char);
 }
 
 impl StringExt for String {
@@ -10,11 +9,6 @@ impl StringExt for String {
     fn fill_to_capacity(&mut self, c: char) {
         for _ in self.len()..self.capacity() {
             self.push(c);
-        }
-    }
-    fn fill_to(&mut self, index: usize, with: char) {
-        for _ in self.len()..index {
-            self.push(with);
         }
     }
 }
@@ -29,25 +23,25 @@ mod tests {
         let mut s = String::with_capacity(10);
         assert_eq!(s.len(), 0);
         assert_eq!(s.capacity(), 10);
-        
+
         s.fill_to_capacity('a');
-        
+
         // Now the string should have 'a' repeated from len() to capacity
         assert_eq!(s.len(), 10);
         assert_eq!(s.capacity(), 10);
         assert_eq!(s, "aaaaaaaaaa");
-        
+
         // Test when the string is initially at its full capacity
         let mut s = String::with_capacity(10);
         s.push('b');
         s.push('b');
         s.push('b');
-        
+
         assert_eq!(s.len(), 3);
         assert_eq!(s.capacity(), 10);
-        
+
         s.fill_to_capacity('c');
-        
+
         // Now the string should have 'b' at the start, and 'c' to fill up to the capacity
         assert_eq!(s.len(), 10);
         assert_eq!(s.capacity(), 10);
@@ -60,12 +54,12 @@ mod tests {
         s.push('d');
         s.push('d');
         s.push('d');
-        
+
         assert_eq!(s.len(), 5);
         assert_eq!(s.capacity(), 5);
-        
+
         s.fill_to_capacity('e');
-        
+
         // No changes should happen as the string's length equals the capacity
         assert_eq!(s.len(), 5);
         assert_eq!(s.capacity(), 5);

@@ -17,6 +17,7 @@ impl Line {
     }
 }
 
+// TODO: Make all the data here private and add helper functions according to errors in code
 pub struct BufferData {
     pub data: Vec<char>,
     pub lines: Vec<Line>,
@@ -421,7 +422,12 @@ impl Buffer {
     pub fn scroll(&mut self) {
         let (x, y) = self.cursor_xy();
 
-        let Padding { top, right, bottom, left } = self.padding();
+        let Padding {
+            top,
+            right,
+            bottom,
+            left,
+        } = self.padding();
 
         let left_bound = self.x as isize + left as isize;
         let right_bound = (self.x + self.width) as isize - right as isize;
@@ -458,6 +464,7 @@ impl Buffer {
             return;
         }
 
+        // TODO: Improve this match statement to make it cleaner and easier to extend
         match event {
             // Save As
             Event::Key(KeyEvent {
@@ -568,6 +575,7 @@ impl Buffer {
             return;
         }
 
+        // TODO: Make this match statement cleaner and easier to extend
         match event {
             Event::Key(KeyEvent {
                 code: KeyCode::Left,

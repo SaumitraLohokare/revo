@@ -11,7 +11,10 @@ use crossterm::event::Event;
 use uuid::Uuid;
 
 use crate::{
-    buffer::{Buffer, BufferLogic}, settings::Settings, status_line::StatusLine, terminal::Terminal
+    buffer::{Buffer, BufferLogic},
+    settings::Settings,
+    status_line::StatusLine,
+    terminal::Terminal,
 };
 
 pub enum BufferEvent {
@@ -34,6 +37,14 @@ pub enum BufferEvent {
     },
 }
 
+// TODO:
+// FocusEvent (Think about how to implement this)
+// ResizeBuffers (Maybe make this an event)
+// OpenFile?
+// OpenFileInSplit?
+// OpenFolder?
+//
+// Can maybe add ReloadSettings to support hot-reloading
 pub enum EditorEvent {
     Input(Event),
     Buffer(BufferEvent),
@@ -44,15 +55,19 @@ pub struct PausedEvent {
     event: EditorEvent,
 }
 
+// TODO: Might wanna change active_buffer, active_overlays to a stack of focus events
+// 		 this can make it easier to keep rewinding the focus
 pub struct Editor<W: Write> {
     settings: Settings,
-    
+
     buffers: HashMap<Uuid, Buffer>,
     active_buffer: Option<Uuid>,
 
     overlays: HashMap<Uuid, Buffer>,
     active_overlay: Option<Uuid>,
 
+    // TODO: Need to decide if we want separate status lines or a single status line
+    // In case of a single status line, how to show which buffer is which file
     pub status_line: StatusLine,
 
     pub terminal: Terminal<W>,
@@ -154,9 +169,11 @@ impl<W: Write> Editor<W> {
     }
 
     pub fn draw_status_line(&mut self) {
-        self.terminal.draw_status_line(&self.status_line, &self.settings.theme);
+        self.terminal
+            .draw_status_line(&self.status_line, &self.settings.theme);
     }
 
+    // TODO: This will work with FocusStack
     pub fn show_cursor(&mut self) -> io::Result<()> {
         if let Some(id) = self.active_overlay {
             self.terminal.show_cursor(self.overlays.get(&id).unwrap())?;
@@ -167,6 +184,7 @@ impl<W: Write> Editor<W> {
         Ok(())
     }
 
+    // TODO: This will work with FocusStack
     pub fn forward_event(&mut self, event: Event) {
         if let Some(id) = self.active_overlay {
             self.overlays.get_mut(&id).unwrap().parse_input(event);
@@ -214,7 +232,7 @@ impl<W: Write> Editor<W> {
             BufferEvent::Close { id, is_overlay } => {
                 if is_overlay {
                     self.close_overlay(id);
-                }
+                } // TODO: Add for non-overlay
             }
             BufferEvent::ResumeEvent {
                 paused_event_id,
@@ -231,7 +249,7 @@ impl<W: Write> Editor<W> {
                         EditorEvent::Buffer(BufferEvent::SaveAs { id }) => {
                             self.save_buffer_as(id, result)?;
                         }
-                        _ => ()
+                        _ => (),
                     }
                 }
             }
@@ -252,6 +270,7 @@ impl<W: Write> Editor<W> {
         Ok(())
     }
 
+    // TODO: Think about moving this to a separate thread
     fn save_buffer(&mut self, id: Uuid) -> io::Result<()> {
         if let Some(buf) = self.buffers.get(&id) {
             let contents: String = buf.data.data.iter().collect();
@@ -266,6 +285,7 @@ impl<W: Write> Editor<W> {
         Ok(())
     }
 
+    // TODO: Think about moving this to a separate thread
     fn save_buffer_as(&mut self, id: Uuid, file_name: String) -> io::Result<()> {
         if let Some(buf) = self.buffers.get_mut(&id) {
             let contents: String = buf.data.data.iter().collect();
@@ -285,6 +305,7 @@ impl<W: Write> Editor<W> {
         Ok(())
     }
 
+    // TODO: These following functions will get moved to Buffer when we make the change
     pub fn update_status_line_file(&mut self) {
         if let Some(id) = self.active_buffer {
             let buf = self.buffers.get(&id).unwrap();

@@ -29,12 +29,12 @@ enum BrushEvent {
     PreviousFG,
 }
 
+// TODO: Add helper functions to setting and resetting brushes, it'll make the code a lot easier to read
 pub struct Terminal<W: Write> {
     pub width: u16,
     pub height: u16,
-    // buffer: Vec<String>,
     buffer: Vec<Vec<char>>,
-    brushes: Vec<Vec<(usize, BrushEvent)>>,
+    brushes: Vec<Vec<(usize, BrushEvent)>>, // TODO: Look into a better way for this
     out: W,
 }
 
