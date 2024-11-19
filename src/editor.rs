@@ -39,7 +39,6 @@ pub enum BufferEvent {
 // TODO:
 // FocusEvent (Think about how to implement this)
 // ResizeBuffers (Maybe make this an event)
-// OpenFile?
 // OpenFileInSplit?
 // OpenFolder?
 //
@@ -96,8 +95,6 @@ impl<W: Write> Editor<W> {
 
     pub fn start(&mut self) -> io::Result<()> {
         loop {
-            // TODO: Maybe make it so that we onlly draw when correct events are triggered
-            // 		 Drawing on ALL events is a waste (such as Save...)
             if let Ok(event) = self.msg_receiver.recv() {
                 match event {
                     EditorEvent::Input(event) => match event {
@@ -325,8 +322,7 @@ impl<W: Write> Editor<W> {
 
         Ok(())
     }
-
-    // TODO: Think about moving this to a separate thread
+    
     fn save_buffer(&mut self, id: Uuid) -> io::Result<()> {
         if let Some(buf) = self.buffers.get(&id) {
             let contents: String = buf.data.to_string();
@@ -340,15 +336,14 @@ impl<W: Write> Editor<W> {
 
         Ok(())
     }
-
-    // TODO: Think about moving this to a separate thread
+    
     fn save_buffer_as(&mut self, id: Uuid, file_name: String) -> io::Result<()> {
         if let Some(buf) = self.buffers.get_mut(&id) {
             let contents: String = buf.data.to_string();
 
             match &mut buf.file_path {
                 Some(path) => path.set_file_name(file_name),
-                None => buf.set_path(PathBuf::from(file_name)).unwrap(), // TODO: Ensure correct handling of failed attempt to save as
+                None => buf.set_path(PathBuf::from(file_name)).unwrap(),
             }
 
             if let Some(file_path) = &buf.file_path {

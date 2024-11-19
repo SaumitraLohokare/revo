@@ -31,7 +31,7 @@ pub struct Terminal<W: Write> {
     pub width: u16,
     pub height: u16,
     buffer: Vec<Vec<char>>,
-    brushes: Vec<Vec<(usize, BrushEvent)>>, // TODO: Look into a better way for this
+    brushes: Vec<Vec<(usize, BrushEvent)>>,
     out: W,
 }
 

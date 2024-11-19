@@ -40,7 +40,7 @@ impl BufferData {
         let data = data
             .chars()
             .map(|b| b as char)
-            .filter(|c| *c != '\r') // TODO: Maybe we can store if the file uses CRLF, and make the changes before saving
+            .filter(|c| *c != '\r')
             .collect();
 
         let mut buf_data = Self {
