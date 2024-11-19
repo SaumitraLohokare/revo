@@ -233,6 +233,8 @@ pub struct Buffer {
     read_only: bool,
     pub visible: bool,
     pub line_numbers: bool,
+    pub show_status_line: bool,
+
     pub bordered: bool,
     pub top_border: String,
     pub bottom_border: String,
@@ -250,6 +252,7 @@ impl Buffer {
         y: u16,
         width: u16,
         height: u16,
+        show_status_line: bool,
         bordered: bool,
         logic: BufferLogic,
         title: &str,
@@ -315,6 +318,7 @@ impl Buffer {
             read_only: false,      // Default to not read-only
             visible: true,         // Default to visible
             line_numbers,
+            show_status_line,
             bordered,
             top_border,
             bottom_border,
@@ -339,7 +343,7 @@ impl Buffer {
             0
         };
 
-        let Padding { right, left, .. } = self.padding();
+        let Padding { right, left, .. } = self.get_padding();
 
         let mut display_line = String::with_capacity(self.width as usize);
         if self.bordered {
@@ -384,7 +388,45 @@ impl Buffer {
         Some(display_line)
     }
 
-    pub fn padding(&self) -> Padding {
+    pub fn get_status_line(&self) -> String {
+        let mut line = String::with_capacity(self.width as usize);
+        line.push(' ');
+
+        let file_name = match &self.file_path {
+            Some(path) => match path.file_name() {
+                Some(name) => name.to_str().unwrap().to_string(),
+                None => "NO NAME".to_string(),
+            }
+            None => "NO NAME".to_string(),
+        };
+        
+        let mut content_width = file_name.len();
+        line.push_str(&file_name);
+
+        let (cursor_x, cursor_y) = self.cursor_xy_relative();
+
+        // Cursor position is 1-indexed
+        let cursor_x_str = (cursor_x + 1).to_string();
+        let cursor_y_str = (cursor_y + 1).to_string();
+
+        // "(x, y)"
+        content_width += 1 + cursor_x_str.len() + 2 + cursor_y_str.len() + 1;
+
+        for _ in 0..(self.width as usize - 2 - content_width) {
+            line.push(' ');
+        }
+
+        line.push('(');
+        line.push_str(&cursor_x_str);
+        line.push_str(", ");
+        line.push_str(&cursor_y_str);
+        line.push(')');
+
+        line.push(' ');
+        line
+    }
+
+    pub fn get_padding(&self) -> Padding {
         let line_numbers_offset = if self.line_numbers {
             self.data.digits_in_line_num()
         } else {
@@ -393,10 +435,12 @@ impl Buffer {
 
         let border_offset = if self.bordered { 1 } else { 0 };
 
+        let status_line_offset = if self.show_status_line { 1 } else { 0 };
+
         Padding {
             top: border_offset,
             right: border_offset,
-            bottom: border_offset,
+            bottom: border_offset + status_line_offset,
             left: border_offset + line_numbers_offset,
         }
     }
@@ -433,7 +477,7 @@ impl Buffer {
         let mut x = 0isize;
         let mut y = 0isize;
 
-        let Padding { left, top, .. } = self.padding();
+        let Padding { left, top, .. } = self.get_padding();
 
         for Line { start, end } in self.data.lines.iter() {
             if *start <= self.data.cursor && *end >= self.data.cursor {
@@ -496,7 +540,7 @@ impl Buffer {
             right,
             bottom,
             left,
-        } = self.padding();
+        } = self.get_padding();
 
         let left_bound = self.x as isize + left as isize;
         let right_bound = (self.x + self.width) as isize - right as isize;

@@ -19,7 +19,6 @@ use editor::{Editor, EditorEvent};
 mod buffer;
 mod editor;
 mod settings;
-mod status_line;
 mod terminal;
 mod theme;
 mod vec_ext;

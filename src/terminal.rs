@@ -16,7 +16,6 @@ use crossterm::{
 
 use crate::{
     buffer::{Buffer, BufferLogic, Padding},
-    status_line::StatusLine,
     theme::Theme,
     vec_ext::VecExt,
 };
@@ -197,7 +196,7 @@ impl<W: Write> Terminal<W> {
     pub fn draw_buffer(&mut self, buffer: &Buffer, theme: &Theme) {
         let Padding {
             top, bottom, left, ..
-        } = buffer.padding();
+        } = buffer.get_padding();
 
         let mut row_idx = buffer.y as usize + top;
         let buf_x = buffer.x as usize;
@@ -262,28 +261,21 @@ impl<W: Write> Terminal<W> {
             row_idx += 1;
         }
 
+        if buffer.show_status_line {
+            let line = buffer.get_status_line();
+            self.buffer[row_idx].replace_from(buf_x, &line);
+
+            self.paint_bg(row_idx, buf_x, buf_end, &theme.status_line.bg);
+            self.paint_fg(row_idx, buf_x, buf_end, &theme.status_line.text);
+            row_idx += 1;
+        }
+
         if buffer.bordered {
             self.buffer[row_idx].replace_from(buf_x, &buffer.bottom_border);
 
             self.paint_bg(row_idx, buf_x, buf_end, border_bg_color);
             self.paint_fg(row_idx, buf_x, buf_end, border_fg_color);
         }
-    }
-
-    pub fn draw_status_line(&mut self, sl: &StatusLine, theme: &Theme) {
-        let line = sl.get_line(self.width);
-
-        self.buffer[self.height as usize - 1].replace_from(0, &line);
-        self.brushes[self.height as usize - 1].push((
-            0,
-            BrushEvent::SetBG(Theme::hex_to_color(&theme.status_line.bg)),
-        ));
-        self.brushes[self.height as usize - 1].push((
-            0,
-            BrushEvent::SetFG(Theme::hex_to_color(&theme.status_line.text)),
-        ));
-        self.brushes[self.height as usize - 1].push((self.width as usize, BrushEvent::PreviousBG));
-        self.brushes[self.height as usize - 1].push((self.width as usize, BrushEvent::PreviousFG));
     }
 
     pub fn draw_welcome_msg(&mut self) {

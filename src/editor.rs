@@ -13,7 +13,6 @@ use uuid::Uuid;
 use crate::{
     buffer::{Buffer, BufferLogic},
     settings::Settings,
-    status_line::StatusLine,
     terminal::Terminal,
 };
 
@@ -67,10 +66,6 @@ pub struct Editor<W: Write> {
     overlays: HashMap<Uuid, Buffer>,
     active_overlay: Option<Uuid>,
 
-    // TODO: Need to decide if we want separate status lines or a single status line
-    // In case of a single status line, how to show which buffer is which file
-    pub status_line: StatusLine,
-
     pub terminal: Terminal<W>,
 
     msg_receiver: Receiver<EditorEvent>,
@@ -92,7 +87,6 @@ impl<W: Write> Editor<W> {
             active_buffer: None,
             overlays: HashMap::new(),
             active_overlay: None,
-            status_line: StatusLine::new(),
             terminal: Terminal::new(out)?,
             msg_receiver,
             sender_copy,
@@ -129,7 +123,8 @@ impl<W: Write> Editor<W> {
                             x,
                             y,
                             self.terminal.width,
-                            self.terminal.height - 1, // To account for status line currently, this will change once we make the status line a part of the Buffer
+                            self.terminal.height,
+                            true,
                             false,
                             BufferLogic::Editor,
                             "",
@@ -147,9 +142,6 @@ impl<W: Write> Editor<W> {
             self.begin_draw()?;
 
             self.draw_buffers();
-
-            self.update_status_line_cursor();
-            self.draw_status_line();
 
             self.end_draw()?;
             self.show_cursor()?;
@@ -234,11 +226,6 @@ impl<W: Write> Editor<W> {
         }
     }
 
-    pub fn draw_status_line(&mut self) {
-        self.terminal
-            .draw_status_line(&self.status_line, &self.settings.theme);
-    }
-
     // TODO: This will work with FocusStack
     pub fn show_cursor(&mut self) -> io::Result<()> {
         if let Some(id) = self.active_overlay {
@@ -284,6 +271,7 @@ impl<W: Write> Editor<W> {
                     y,
                     width,
                     height,
+                    false,
                     true,
                     BufferLogic::InputBox,
                     "Save As",
@@ -366,32 +354,8 @@ impl<W: Write> Editor<W> {
             if let Some(file_path) = &buf.file_path {
                 fs::write(file_path, contents)?;
             }
-
-            self.update_status_line_file();
         }
 
         Ok(())
-    }
-
-    // TODO: These following functions will get moved to Buffer when we make the change
-    pub fn update_status_line_file(&mut self) {
-        if let Some(id) = self.active_buffer {
-            let buf = self.buffers.get(&id).unwrap();
-            if let Some(path) = &buf.file_path {
-                self.status_line.update_file_name(match path.file_name() {
-                    Some(name) => name.to_str().unwrap().to_string(),
-                    None => "NO NAME".to_string(),
-                });
-            } else {
-                self.status_line.update_file_name("NO NAME".to_string());
-            }
-        }
-    }
-
-    pub fn update_status_line_cursor(&mut self) {
-        if let Some(id) = self.active_buffer {
-            let buf = self.buffers.get(&id).unwrap();
-            self.status_line.update_cursor_pos(buf.cursor_xy_relative());
-        }
     }
 }
