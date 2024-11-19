@@ -4,10 +4,10 @@ use std::{
     fs,
     io::{self, Write},
     path::PathBuf,
-    sync::mpsc::Sender,
+    sync::mpsc::{Receiver, Sender},
 };
 
-use crossterm::event::Event;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use uuid::Uuid;
 
 use crate::{
@@ -48,6 +48,7 @@ pub enum BufferEvent {
 pub enum EditorEvent {
     Input(Event),
     Buffer(BufferEvent),
+    OpenFile(PathBuf),
 }
 
 pub struct PausedEvent {
@@ -72,13 +73,19 @@ pub struct Editor<W: Write> {
 
     pub terminal: Terminal<W>,
 
+    msg_receiver: Receiver<EditorEvent>,
     sender_copy: Sender<EditorEvent>,
 
     paused_events: Vec<PausedEvent>,
 }
 
 impl<W: Write> Editor<W> {
-    pub fn new(settings: Settings, out: W, sender_copy: Sender<EditorEvent>) -> io::Result<Self> {
+    pub fn new(
+        settings: Settings,
+        out: W,
+        sender_copy: Sender<EditorEvent>,
+        msg_receiver: Receiver<EditorEvent>,
+    ) -> io::Result<Self> {
         Ok(Self {
             settings,
             buffers: HashMap::new(),
@@ -87,9 +94,68 @@ impl<W: Write> Editor<W> {
             active_overlay: None,
             status_line: StatusLine::new(),
             terminal: Terminal::new(out)?,
+            msg_receiver,
             sender_copy,
             paused_events: vec![],
         })
+    }
+
+    pub fn start(&mut self) -> io::Result<()> {
+        loop {
+            // TODO: Maybe make it so that we onlly draw when correct events are triggered
+            // 		 Drawing on ALL events is a waste (such as Save...)
+            if let Ok(event) = self.msg_receiver.recv() {
+                match event {
+                    EditorEvent::Input(event) => match event {
+                        Event::Key(KeyEvent {
+                            code: KeyCode::Char('q'),
+                            modifiers: KeyModifiers::CONTROL,
+                            ..
+                        }) => break,
+
+                        Event::Resize(w, h) => self.resize(w, h),
+
+                        _ => self.forward_event(event),
+                    },
+                    EditorEvent::Buffer(buffer_event) => self.handle_buffer_event(buffer_event)?,
+                    EditorEvent::OpenFile(path_buf) => {
+                        // The x, y, width, and height values are set to default values (you can adjust these as needed)
+                        let x = 0;
+                        let y = 0;
+
+                        // Return the Buffer inside an Option, or None if there was an error
+                        let buf = Buffer::new(
+                            path_buf,
+                            x,
+                            y,
+                            self.terminal.width,
+                            self.terminal.height - 1, // To account for status line currently, this will change once we make the status line a part of the Buffer
+                            false,
+                            BufferLogic::Editor,
+                            "",
+                            self.sender_copy.clone(),
+                        )?;
+
+                        let id = self.add_buffer(buf);
+                        self.activate_buffer(id);
+                    }
+                }
+            } else {
+                unreachable!("As long as input thread is running, this should never be reached.");
+            }
+
+            self.begin_draw()?;
+
+            self.draw_buffers();
+
+            self.update_status_line_cursor();
+            self.draw_status_line();
+
+            self.end_draw()?;
+            self.show_cursor()?;
+        }
+
+        Ok(())
     }
 
     pub fn resize(&mut self, w: u16, h: u16) {

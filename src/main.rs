@@ -10,7 +10,7 @@ use std::{
 use buffer::{Buffer, BufferLogic};
 use crossterm::{
     cursor::{SetCursorStyle, Show},
-    event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::read,
     execute,
     style::ResetColor,
     terminal::{disable_raw_mode, EnableLineWrap, LeaveAlternateScreen},
@@ -25,7 +25,74 @@ mod terminal;
 mod theme;
 mod vec_ext;
 
-fn main() {
+fn main() -> io::Result<()> {
+    setup_panic_handler();
+
+    let settings = settings::read_editor_settings()?;
+
+    // Create channel for editor events
+    let (send, recv) = mpsc::channel();
+    let input_send = send.clone();
+
+    parse_args(send.clone())?;
+
+    // Start input handeling thread
+    let input_thread = std::thread::spawn(move || input(input_send));
+
+    {
+        let mut editor = Editor::new(settings, stdout(), send, recv)?;
+
+        editor.start()?;
+    }
+
+    // NOTE: Editor needs to be dropped before we try to join input_thread
+    input_thread
+        .join()
+        .expect("Failed while joining Input Thread");
+
+    Ok(())
+}
+
+/// If a file or folder was passed as argument sends `EditorEvent::OpenFile` to the editor
+fn parse_args(msg_sender: Sender<EditorEvent>) -> io::Result<()> {
+    // Get the arguments passed to the program
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() < 2 {
+        return Ok(());
+    } else if args.len() > 2 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Revo currently only supports opening one file at a time",
+        ));
+    }
+
+    let path = PathBuf::from(&args[1]);
+
+    if path.file_name().is_none() || (path.exists() && path.is_dir()) {
+        // Opening a folder
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Opening directories is not yet supported",
+        ))
+    } else {
+        // Opening a file
+        msg_sender.send(EditorEvent::OpenFile(path)).unwrap();
+        Ok(())
+    }
+}
+
+fn input(out: Sender<EditorEvent>) {
+    loop {
+        if let Ok(event) = read() {
+            if let Err(_) = out.send(EditorEvent::Input(event)) {
+                break;
+            }
+        }
+    }
+}
+
+fn setup_panic_handler() {
     panic::set_hook(Box::new(|panic_info| {
         if let Err(e) = disable_raw_mode() {
             eprintln!("ERROR : Failed to disable terminal raw mode : {e}");
@@ -49,130 +116,4 @@ fn main() {
         }
         println!("Panic payload: {:?}", panic_info.payload());
     }));
-
-    if let Err(e) = run() {
-        eprintln!("ERROR : {e}");
-        exit(1);
-    }
-}
-
-fn run() -> io::Result<()> {
-    let settings = settings::read_editor_settings()?;
-
-    let stdout = io::stdout();
-
-    let (send, recv) = mpsc::channel();
-    let input_send = send.clone();
-    let input_thread = std::thread::spawn(move || input(input_send));
-
-    let mut editor = Editor::new(settings, stdout, send.clone())?;
-
-    match parse_args(editor.terminal.width, editor.terminal.height - 1, send)? {
-        Some(buf) => {
-            let id = editor.add_buffer(buf);
-            editor.activate_buffer(id);
-        }
-        None => editor.terminal.draw_welcome_msg(), // TODO: Maybe we can put this into editor.draw_buffers, If there are no buffers we draw this
-    }
-
-    // TODO: If we add Focus as a stack in the Editor, this can get called on FocusChange Events
-    editor.update_status_line_file();
-
-    // TODO: Maybe move this into a function inside editor
-    loop {
-        // TODO: Maybe make it so that we onlly draw when correct events are triggered
-        // 		 Drawing on ALL events is a waste (such as Save...)
-        if let Ok(event) = recv.recv() {
-            match event {
-                EditorEvent::Input(event) => match event {
-                    Event::Key(KeyEvent {
-                        code: KeyCode::Char('q'),
-                        modifiers: KeyModifiers::CONTROL,
-                        ..
-                    }) => break,
-
-                    Event::Resize(w, h) => editor.resize(w, h),
-
-                    _ => editor.forward_event(event),
-                },
-                EditorEvent::Buffer(buffer_event) => editor.handle_buffer_event(buffer_event)?,
-            }
-        } else {
-            unreachable!("As long as input thread is running, this should never be reached.");
-        }
-
-        editor.begin_draw()?;
-
-        editor.draw_buffers();
-
-        editor.update_status_line_cursor();
-        editor.draw_status_line();
-
-        editor.end_draw()?;
-        editor.show_cursor()?;
-    }
-
-    drop(recv);
-
-    input_thread
-        .join()
-        .expect("Failed while joining Input Thread");
-
-    Ok(())
-}
-
-// TODO: Instead of adding a Buffer in here, we could create a new EditorEvent::OpenFile
-fn parse_args(
-    width: u16,
-    height: u16,
-    msg_sender: Sender<EditorEvent>,
-) -> io::Result<Option<Buffer>> {
-    // Get the arguments passed to the program
-    let args: Vec<String> = env::args().collect();
-
-    // If no arguments were passed (other than the program name), return None
-    if args.len() < 2 {
-        return Ok(None);
-    }
-
-    // The second argument (args[1]) is expected to be the file path
-    let path = PathBuf::from(&args[1]);
-
-    if path.file_name().is_none() || (path.exists() && path.is_dir()) {
-        // Opening a folder
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Opening directories is not yet supported",
-        ));
-    } else {
-        // Opening a file
-        // Attempt to create a new Buffer with the provided file path
-        // The x, y, width, and height values are set to default values (you can adjust these as needed)
-        let x = 0;
-        let y = 0;
-
-        // Return the Buffer inside an Option, or None if there was an error
-        Buffer::new(
-            path,
-            x,
-            y,
-            width,
-            height,
-            false,
-            BufferLogic::Editor,
-            "",
-            msg_sender,
-        )
-        .map(|b| Some(b))
-    }
-}
-
-fn input(out: Sender<EditorEvent>) {
-    loop {
-        if let Ok(event) = read() {
-            if let Err(_) = out.send(EditorEvent::Input(event)) {
-                break;
-            }
-        }
-    }
 }
