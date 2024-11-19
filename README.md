@@ -25,3 +25,7 @@
 - Add More EditorEvents
 
 - Update active buffer width and height on resize.
+
+## Themes
+
+[themes repository](https://github.com/SaumitraLohokare/revo-themes)
