@@ -28,7 +28,6 @@ enum BrushEvent {
     PreviousFG,
 }
 
-// TODO: Add helper functions to setting and resetting brushes, it'll make the code a lot easier to read
 pub struct Terminal<W: Write> {
     pub width: u16,
     pub height: u16,
@@ -160,6 +159,24 @@ impl<W: Write> Terminal<W> {
         self.flush()
     }
 
+    /// Paint's the terminal row background, from start column to end column (exclusive) with color.
+    ///
+    /// Color is provided as Hex RGB (#FFFFFF)
+    fn paint_bg(&mut self, row: usize, start: usize, end: usize, color: &str) {
+        self.brushes[row].push((start, BrushEvent::SetBG(Theme::hex_to_color(color))));
+
+        self.brushes[row].push((end, BrushEvent::PreviousBG));
+    }
+
+    /// Paint's the terminal row foreground, from start column to end column (exclusive) with color.
+    ///
+    /// Color is provided as Hex RGB (#FFFFFF)
+    fn paint_fg(&mut self, row: usize, start: usize, end: usize, color: &str) {
+        self.brushes[row].push((start, BrushEvent::SetFG(Theme::hex_to_color(color))));
+
+        self.brushes[row].push((end, BrushEvent::PreviousFG));
+    }
+
     pub fn clear(&mut self) -> io::Result<()> {
         let line: String = (0..self.width).into_iter().map(|_| ' ').collect();
         for i in 0..self.height {
@@ -213,21 +230,8 @@ impl<W: Write> Terminal<W> {
         if buffer.bordered {
             self.buffer[buffer.y as usize].replace_from(buffer.x as usize, &buffer.top_border);
 
-            self.brushes[buffer.y as usize].push((
-                buffer.x as usize,
-                BrushEvent::SetBG(Theme::hex_to_color(border_bg_color)),
-            ));
-
-            self.brushes[buffer.y as usize]
-                .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
-
-            self.brushes[buffer.y as usize].push((
-                buffer.x as usize,
-                BrushEvent::SetFG(Theme::hex_to_color(border_fg_color)),
-            ));
-
-            self.brushes[buffer.y as usize]
-                .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
+            self.paint_bg(buffer.y as usize, buffer.x as usize, (buffer.x + buffer.width) as usize, border_bg_color);
+            self.paint_fg(buffer.y as usize, buffer.x as usize, (buffer.x + buffer.width) as usize, border_fg_color);
         }
 
         for (line_num, Line { start, end }) in buffer
@@ -279,55 +283,24 @@ impl<W: Write> Terminal<W> {
 
             match buffer.logic {
                 BufferLogic::Editor => {
-                    if buf_current_line == line_num {
-                        self.brushes[row_idx].push((
-                            buffer.x as usize,
-                            BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.current_line)),
-                        ));
+                    let line_color = if buf_current_line == line_num {
+                        &theme.editor.current_line
                     } else {
-                        self.brushes[row_idx].push((
-                            buffer.x as usize,
-                            BrushEvent::SetBG(Theme::hex_to_color(&theme.editor.bg)),
-                        ));
-                    }
+                        &theme.editor.bg
+                    };
 
+                    self.paint_bg(row_idx, buffer.x as usize, (buffer.x + buffer.width) as usize, &line_color);
+                    
                     if buffer.line_numbers {
                         let border_gap = if buffer.bordered { 1 } else { 0 };
-                        self.brushes[row_idx].push((
-                            buffer.x as usize + border_gap,
-                            BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.line_numbers)),
-                        ));
-
-                        self.brushes[row_idx].push((start_x, BrushEvent::PreviousFG));
+                        self.paint_fg(row_idx, buffer.x as usize + border_gap, start_x, &theme.editor.line_numbers);
                     }
-
-                    self.brushes[row_idx].push((
-                        start_x,
-                        BrushEvent::SetFG(Theme::hex_to_color(&theme.editor.text)),
-                    ));
-
-                    self.brushes[row_idx]
-                        .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
-
-                    self.brushes[row_idx]
-                        .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
+                    
+                    self.paint_fg(row_idx, start_x, (buffer.x + buffer.width) as usize, &theme.editor.text);
                 }
                 BufferLogic::InputBox => {
-                    self.brushes[row_idx].push((
-                        buffer.x as usize,
-                        BrushEvent::SetBG(Theme::hex_to_color(&theme.overlay.bg)),
-                    ));
-
-                    self.brushes[row_idx].push((
-                        buffer.x as usize,
-                        BrushEvent::SetFG(Theme::hex_to_color(&theme.overlay.text)),
-                    ));
-
-                    self.brushes[row_idx]
-                        .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
-
-                    self.brushes[row_idx]
-                        .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
+                    self.paint_bg(row_idx, buffer.x as usize, (buffer.x + buffer.width) as usize, &theme.overlay.bg);
+                    self.paint_fg(row_idx, start_x, (buffer.x + buffer.width) as usize, &theme.overlay.text);
                 }
                 BufferLogic::Selector => todo!(),
             }
@@ -338,21 +311,8 @@ impl<W: Write> Terminal<W> {
         if buffer.bordered {
             self.buffer[row_idx].replace_from(buffer.x as usize, &buffer.bottom_border);
 
-            self.brushes[row_idx].push((
-                buffer.x as usize,
-                BrushEvent::SetBG(Theme::hex_to_color(border_bg_color)),
-            ));
-
-            self.brushes[row_idx]
-                .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousBG));
-
-            self.brushes[row_idx].push((
-                buffer.x as usize,
-                BrushEvent::SetFG(Theme::hex_to_color(border_fg_color)),
-            ));
-
-            self.brushes[row_idx]
-                .push(((buffer.x + buffer.width) as usize, BrushEvent::PreviousFG));
+            self.paint_bg(row_idx, buffer.x as usize, (buffer.x + buffer.width) as usize, border_bg_color);
+            self.paint_fg(row_idx, buffer.x as usize, (buffer.x + buffer.width) as usize, border_fg_color);
         }
     }
 
