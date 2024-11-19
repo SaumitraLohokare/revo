@@ -17,11 +17,10 @@ impl Line {
     }
 }
 
-// TODO: Make all the data here private and add helper functions according to errors in code
 pub struct BufferData {
-    pub data: Vec<char>,
-    pub lines: Vec<Line>,
-    pub cursor: usize,
+    data: Vec<char>,
+    lines: Vec<Line>,
+    cursor: usize,
     prev_cursor_offset: Option<usize>,
 }
 
@@ -52,6 +51,10 @@ impl BufferData {
         };
         buf_data.recalculate_lines();
         buf_data
+    }
+
+    pub fn line_count(&self) -> usize {
+        self.lines.len()
     }
 
     pub fn recalculate_lines(&mut self) {
@@ -186,6 +189,12 @@ impl BufferData {
             max = max.saturating_div(10);
         }
         digits
+    }
+}
+
+impl ToString for BufferData {
+    fn to_string(&self) -> String {
+        self.data.iter().collect()
     }
 }
 

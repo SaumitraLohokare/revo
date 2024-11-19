@@ -223,7 +223,7 @@ impl<W: Write> Terminal<W> {
             self.paint_fg(buffer.y as usize, buf_x, buf_end, border_fg_color);
         }
 
-        for line_num in (buffer.scroll_y..buffer.data.lines.len())
+        for line_num in (buffer.scroll_y..buffer.data.line_count())
             .take((height as usize).saturating_sub(bottom + top))
         {
             if let Some(display_line) = buffer.get_row(line_num) {

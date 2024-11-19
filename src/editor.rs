@@ -341,7 +341,7 @@ impl<W: Write> Editor<W> {
     // TODO: Think about moving this to a separate thread
     fn save_buffer(&mut self, id: Uuid) -> io::Result<()> {
         if let Some(buf) = self.buffers.get(&id) {
-            let contents: String = buf.data.data.iter().collect();
+            let contents: String = buf.data.to_string();
             if let Some(file_path) = &buf.file_path {
                 fs::write(file_path, contents)?;
             } else {
@@ -356,7 +356,7 @@ impl<W: Write> Editor<W> {
     // TODO: Think about moving this to a separate thread
     fn save_buffer_as(&mut self, id: Uuid, file_name: String) -> io::Result<()> {
         if let Some(buf) = self.buffers.get_mut(&id) {
-            let contents: String = buf.data.data.iter().collect();
+            let contents: String = buf.data.to_string();
 
             match &mut buf.file_path {
                 Some(path) => path.set_file_name(file_name),
