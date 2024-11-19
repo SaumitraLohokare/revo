@@ -351,8 +351,7 @@ impl Buffer {
 
         if self.line_numbers {
             let digits_count = (row + 1).ilog10() + 1;
-            let spaces =
-                (digits_in_line_nums - 1).saturating_sub(digits_count as usize);
+            let spaces = (digits_in_line_nums - 1).saturating_sub(digits_count as usize);
             display_line.push_str(&" ".repeat(spaces));
             num_chars += spaces;
 
@@ -534,106 +533,64 @@ impl Buffer {
             return;
         }
 
-        // TODO: Improve this match statement to make it cleaner and easier to extend
-        match event {
-            // Save As
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('S'),
-                modifiers,
-                kind: KeyEventKind::Press,
-                ..
-            }) if modifiers == KeyModifiers::CONTROL | KeyModifiers::SHIFT => {
-                self.msg_sender
-                    .send(EditorEvent::Buffer(BufferEvent::SaveAs { id: self.id }))
-                    .expect("Failed to send a msg to the editor");
+        if let Event::Key(KeyEvent {
+            code,
+            modifiers,
+            kind: KeyEventKind::Press,
+            ..
+        }) = event
+        {
+            match (code, modifiers) {
+                // Save As: Ctrl + Shift + S
+                (KeyCode::Char('S'), modifier)
+                    if modifier == KeyModifiers::CONTROL | KeyModifiers::SHIFT =>
+                {
+                    self.msg_sender
+                        .send(EditorEvent::Buffer(BufferEvent::SaveAs { id: self.id }))
+                        .expect("Failed to send a msg to the editor");
+                }
+                // Save: Ctrl + S
+                (KeyCode::Char('s'), KeyModifiers::CONTROL) => {
+                    self.msg_sender
+                        .send(EditorEvent::Buffer(BufferEvent::Save { id: self.id }))
+                        .expect("Failed to send a msg to the editor");
+                }
+                // Arrow Keys (No modifiers)
+                (KeyCode::Left, KeyModifiers::NONE) => {
+                    self.data.move_cursor_left(1);
+                }
+                (KeyCode::Right, KeyModifiers::NONE) => {
+                    self.data.move_cursor_right(1);
+                }
+                (KeyCode::Up, KeyModifiers::NONE) => {
+                    self.data.move_cursor_up(1);
+                }
+                (KeyCode::Down, KeyModifiers::NONE) => {
+                    self.data.move_cursor_down(1);
+                }
+                // Character insertion without modifiers
+                (KeyCode::Char(c), KeyModifiers::NONE) => {
+                    self.data.insert_ch(c);
+                }
+                // Character insertion with SHIFT (uppercase)
+                (KeyCode::Char(c), KeyModifiers::SHIFT) => {
+                    self.data.insert_ch(c.to_ascii_uppercase());
+                }
+                // Enter key
+                (KeyCode::Enter, KeyModifiers::NONE) => {
+                    self.data.insert_ch('\n');
+                }
+                // Backspace key
+                (KeyCode::Backspace, KeyModifiers::NONE) => {
+                    self.data.backspace();
+                }
+                // Delete key
+                (KeyCode::Delete, KeyModifiers::NONE) => {
+                    self.data.delete();
+                }
+                // Catch-all for any other key combinations (could be used for logging or other actions)
+                _ => (),
             }
-            // Save
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('s'),
-                modifiers: KeyModifiers::CONTROL,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.msg_sender
-                    .send(EditorEvent::Buffer(BufferEvent::Save { id: self.id }))
-                    .expect("Failed to send a msg to the editor");
-            }
-
-            Event::Key(KeyEvent {
-                code: KeyCode::Left,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.move_cursor_left(1);
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Right,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.move_cursor_right(1);
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Up,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.move_cursor_up(1);
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Down,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.move_cursor_down(1);
-            }
-
-            Event::Key(KeyEvent {
-                code: KeyCode::Char(c),
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.insert_ch(c);
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Char(c),
-                modifiers: KeyModifiers::SHIFT,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.insert_ch(c.to_ascii_uppercase());
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Enter,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.insert_ch('\n');
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Backspace,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.backspace();
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Delete,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.delete();
-            }
-
-            _ => (),
         }
 
         self.data.recalculate_lines();
@@ -645,99 +602,79 @@ impl Buffer {
             return;
         }
 
-        // TODO: Make this match statement cleaner and easier to extend
-        match event {
-            Event::Key(KeyEvent {
-                code: KeyCode::Left,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.move_cursor_left(1);
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Right,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.move_cursor_right(1);
-            }
+        if let Event::Key(KeyEvent {
+            code,
+            modifiers,
+            kind: KeyEventKind::Press,
+            ..
+        }) = event
+        {
+            match (code, modifiers) {
+                // Cursor movement (Left, Right, Up, Down) - No modifiers
+                (KeyCode::Left, KeyModifiers::NONE) => {
+                    self.data.move_cursor_left(1);
+                }
+                (KeyCode::Right, KeyModifiers::NONE) => {
+                    self.data.move_cursor_right(1);
+                }
+                (KeyCode::Up, KeyModifiers::NONE) => {
+                    self.data.move_cursor_up(1);
+                }
+                (KeyCode::Down, KeyModifiers::NONE) => {
+                    self.data.move_cursor_down(1);
+                }
 
-            Event::Key(KeyEvent {
-                code: KeyCode::Char(c),
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.insert_ch(c);
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Char(c),
-                modifiers: KeyModifiers::SHIFT,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.insert_ch(c.to_ascii_uppercase());
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Enter,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                let result: String = self.data.data.iter().collect();
-                self.msg_sender
-                    .send(EditorEvent::Buffer(BufferEvent::ResumeEvent {
-                        paused_event_id: self.paused_event_id,
-                        result,
-                    }))
-                    .unwrap();
+                // Character insertion (normal and shifted for uppercase)
+                (KeyCode::Char(c), KeyModifiers::NONE) => {
+                    self.data.insert_ch(c);
+                }
+                (KeyCode::Char(c), KeyModifiers::SHIFT) => {
+                    self.data.insert_ch(c.to_ascii_uppercase());
+                }
 
-                self.msg_sender
-                    .send(EditorEvent::Buffer(BufferEvent::Close {
-                        id: self.id,
-                        is_overlay: self.is_overlay,
-                    }))
-                    .unwrap();
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Esc,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.msg_sender
-                    .send(EditorEvent::Buffer(BufferEvent::CancelEvent {
-                        paused_event_id: self.paused_event_id,
-                    }))
-                    .unwrap();
+                // Enter key press
+                (KeyCode::Enter, KeyModifiers::NONE) => {
+                    let result: String = self.data.data.iter().collect();
+                    self.msg_sender
+                        .send(EditorEvent::Buffer(BufferEvent::ResumeEvent {
+                            paused_event_id: self.paused_event_id,
+                            result,
+                        }))
+                        .unwrap();
+                    self.msg_sender
+                        .send(EditorEvent::Buffer(BufferEvent::Close {
+                            id: self.id,
+                            is_overlay: self.is_overlay,
+                        }))
+                        .unwrap();
+                }
 
-                self.msg_sender
-                    .send(EditorEvent::Buffer(BufferEvent::Close {
-                        id: self.id,
-                        is_overlay: self.is_overlay,
-                    }))
-                    .unwrap();
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Backspace,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.backspace();
-            }
-            Event::Key(KeyEvent {
-                code: KeyCode::Delete,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                self.data.delete();
-            }
+                // Escape key press (similar to Enter in terms of closing the event)
+                (KeyCode::Esc, KeyModifiers::NONE) => {
+                    self.msg_sender
+                        .send(EditorEvent::Buffer(BufferEvent::CancelEvent {
+                            paused_event_id: self.paused_event_id,
+                        }))
+                        .unwrap();
+                    self.msg_sender
+                        .send(EditorEvent::Buffer(BufferEvent::Close {
+                            id: self.id,
+                            is_overlay: self.is_overlay,
+                        }))
+                        .unwrap();
+                }
 
-            _ => (),
+                // Backspace and Delete keys
+                (KeyCode::Backspace, KeyModifiers::NONE) => {
+                    self.data.backspace();
+                }
+                (KeyCode::Delete, KeyModifiers::NONE) => {
+                    self.data.delete();
+                }
+
+                // Catch-all for other key events that don't match any of the cases
+                _ => (),
+            }
         }
 
         self.data.recalculate_lines();
