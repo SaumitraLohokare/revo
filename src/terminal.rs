@@ -15,7 +15,7 @@ use crossterm::{
 };
 
 use crate::{
-    buffer::{Buffer, BufferLogic, Line, Padding},
+    buffer::{Buffer, BufferLogic, Padding},
     status_line::StatusLine,
     theme::Theme,
     vec_ext::VecExt,
@@ -99,10 +99,6 @@ impl<W: Write> Terminal<W> {
     pub fn end_draw(&mut self) -> io::Result<()> {
         for (i, row) in self.buffer.iter().enumerate() {
             let row_burshes = &mut self.brushes[i];
-
-            // if row_burshes.len() == 0 {
-            //     queue!(self.out, MoveTo(0, i as u16), Print(row))?;
-            // }
 
             row_burshes.sort_by_key(|b| b.0); // Sort based on colors
 
@@ -200,21 +196,14 @@ impl<W: Write> Terminal<W> {
 
     pub fn draw_buffer(&mut self, buffer: &Buffer, theme: &Theme) {
         let Padding {
-            top,
-            right,
-            bottom,
-            left,
+            top, bottom, left, ..
         } = buffer.padding();
 
         let mut row_idx = buffer.y as usize + top;
-        let start_x = buffer.x as usize + left;
+        let buf_x = buffer.x as usize;
+        let buf_end = (buffer.x + buffer.width) as usize;
+        let start_x = buf_x + left;
         let buf_current_line = buffer.data.current_line();
-
-        let digits_in_line_nums = if buffer.line_numbers {
-            buffer.data.digits_in_line_num()
-        } else {
-            0
-        };
 
         let height = std::cmp::min(buffer.height, self.height);
 
@@ -228,91 +217,56 @@ impl<W: Write> Terminal<W> {
         };
 
         if buffer.bordered {
-            self.buffer[buffer.y as usize].replace_from(buffer.x as usize, &buffer.top_border);
+            self.buffer[buffer.y as usize].replace_from(buf_x, &buffer.top_border);
 
-            self.paint_bg(buffer.y as usize, buffer.x as usize, (buffer.x + buffer.width) as usize, border_bg_color);
-            self.paint_fg(buffer.y as usize, buffer.x as usize, (buffer.x + buffer.width) as usize, border_fg_color);
+            self.paint_bg(buffer.y as usize, buf_x, buf_end, border_bg_color);
+            self.paint_fg(buffer.y as usize, buf_x, buf_end, border_fg_color);
         }
 
-        for (line_num, Line { start, end }) in buffer
-            .data
-            .lines
-            .iter()
-            .enumerate()
-            .skip(buffer.scroll_y)
+        for line_num in (buffer.scroll_y..buffer.data.lines.len())
             .take((height as usize).saturating_sub(bottom + top))
         {
-            let mut display_line = String::with_capacity(buffer.width as usize);
-            if buffer.bordered {
-                display_line.push('│');
-            }
+            if let Some(display_line) = buffer.get_row(line_num) {
+                self.buffer[row_idx].replace_from(buf_x, &display_line);
 
-            let chars_to_take = buffer.width as usize - left - right;
+                match buffer.logic {
+                    BufferLogic::Editor => {
+                        let line_color = if buf_current_line == line_num {
+                            &theme.editor.current_line
+                        } else {
+                            &theme.editor.bg
+                        };
 
-            if buffer.line_numbers {
-                let mut line_num_str = String::with_capacity(digits_in_line_nums);
-                let spaces = (digits_in_line_nums - 1)
-                    .saturating_sub(((line_num + 1).ilog10() + 1) as usize);
-                line_num_str.push_str(&" ".repeat(spaces));
-                line_num_str.push_str(&(line_num + 1).to_string());
-                line_num_str.push(' '); // fill the gap at the end
+                        self.paint_bg(row_idx, buf_x, buf_end, &line_color);
 
-                display_line.push_str(&line_num_str);
-            }
+                        if buffer.line_numbers {
+                            let border_gap = if buffer.bordered { 1 } else { 0 };
+                            self.paint_fg(
+                                row_idx,
+                                buf_x + border_gap,
+                                start_x,
+                                &theme.editor.line_numbers,
+                            );
+                        }
 
-            if let Some(data) = buffer.data.data.get(*start..=*end) {
-                let line: String = data
-                    .iter()
-                    .skip(buffer.scroll_x)
-                    .take(chars_to_take)
-                    .filter(|c| **c != '\n')
-                    .collect();
-
-                display_line.push_str(&line);
-            }
-
-            let num_chars = display_line.chars().count();
-            let spaces_to_add = (buffer.width as usize).saturating_sub(num_chars);
-            display_line.push_str(&" ".repeat(spaces_to_add));
-            if buffer.bordered {
-                display_line.pop();
-                display_line.push('│');
-            }
-
-            self.buffer[row_idx].replace_from(buffer.x as usize, &display_line);
-
-            match buffer.logic {
-                BufferLogic::Editor => {
-                    let line_color = if buf_current_line == line_num {
-                        &theme.editor.current_line
-                    } else {
-                        &theme.editor.bg
-                    };
-
-                    self.paint_bg(row_idx, buffer.x as usize, (buffer.x + buffer.width) as usize, &line_color);
-                    
-                    if buffer.line_numbers {
-                        let border_gap = if buffer.bordered { 1 } else { 0 };
-                        self.paint_fg(row_idx, buffer.x as usize + border_gap, start_x, &theme.editor.line_numbers);
+                        self.paint_fg(row_idx, start_x, buf_end, &theme.editor.text);
                     }
-                    
-                    self.paint_fg(row_idx, start_x, (buffer.x + buffer.width) as usize, &theme.editor.text);
+                    BufferLogic::InputBox => {
+                        self.paint_bg(row_idx, buf_x, buf_end, &theme.overlay.bg);
+                        self.paint_fg(row_idx, start_x, buf_end, &theme.overlay.text);
+                    }
+                    BufferLogic::Selector => todo!(),
                 }
-                BufferLogic::InputBox => {
-                    self.paint_bg(row_idx, buffer.x as usize, (buffer.x + buffer.width) as usize, &theme.overlay.bg);
-                    self.paint_fg(row_idx, start_x, (buffer.x + buffer.width) as usize, &theme.overlay.text);
-                }
-                BufferLogic::Selector => todo!(),
             }
 
             row_idx += 1;
         }
 
         if buffer.bordered {
-            self.buffer[row_idx].replace_from(buffer.x as usize, &buffer.bottom_border);
+            self.buffer[row_idx].replace_from(buf_x, &buffer.bottom_border);
 
-            self.paint_bg(row_idx, buffer.x as usize, (buffer.x + buffer.width) as usize, border_bg_color);
-            self.paint_fg(row_idx, buffer.x as usize, (buffer.x + buffer.width) as usize, border_fg_color);
+            self.paint_bg(row_idx, buf_x, buf_end, border_bg_color);
+            self.paint_fg(row_idx, buf_x, buf_end, border_fg_color);
         }
     }
 

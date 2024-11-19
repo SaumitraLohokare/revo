@@ -41,7 +41,7 @@ impl BufferData {
         let data = data
             .chars()
             .map(|b| b as char)
-            .filter(|c| *c != '\r')
+            .filter(|c| *c != '\r') // TODO: Maybe we can store if the file uses CRLF, and make the changes before saving
             .collect();
 
         let mut buf_data = Self {
@@ -313,6 +313,67 @@ impl Buffer {
             msg_sender, // Channel to send messages to editor
             paused_event_id: Uuid::nil(),
         })
+    }
+
+    pub fn get_row(&self, row: usize) -> Option<String> {
+        let line = if let Some(line) = self.data.lines.get(row) {
+            line
+        } else {
+            return None;
+        };
+
+        let mut num_chars = 0;
+
+        let digits_in_line_nums = if self.line_numbers {
+            self.data.digits_in_line_num()
+        } else {
+            0
+        };
+
+        let Padding { right, left, .. } = self.padding();
+
+        let mut display_line = String::with_capacity(self.width as usize);
+        if self.bordered {
+            display_line.push('│');
+            num_chars += 1;
+        }
+
+        let chars_to_take = self.width as usize - left - right;
+
+        if self.line_numbers {
+            let digits_count = (row + 1).ilog10() + 1;
+            let spaces =
+                (digits_in_line_nums - 1).saturating_sub(digits_count as usize);
+            display_line.push_str(&" ".repeat(spaces));
+            num_chars += spaces;
+
+            display_line.push_str(&(row + 1).to_string());
+            num_chars += digits_count as usize;
+
+            display_line.push(' '); // fill the gap at the end
+            num_chars += 1;
+        }
+
+        if let Some(line_chars) = self.data.data.get(line.start..=line.end) {
+            for ch in line_chars
+                .iter()
+                .skip(self.scroll_x)
+                .take(chars_to_take)
+                .filter(|c| **c != '\n')
+            {
+                display_line.push(*ch);
+                num_chars += 1;
+            }
+        }
+
+        let spaces_to_add = (self.width as usize).saturating_sub(num_chars);
+        display_line.push_str(&" ".repeat(spaces_to_add));
+        if self.bordered {
+            display_line.pop();
+            display_line.push('│');
+        }
+
+        Some(display_line)
     }
 
     pub fn padding(&self) -> Padding {

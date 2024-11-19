@@ -7,7 +7,6 @@ use std::{
     sync::mpsc::{self, Sender},
 };
 
-use buffer::{Buffer, BufferLogic};
 use crossterm::{
     cursor::{SetCursorStyle, Show},
     event::read,
