@@ -9,7 +9,7 @@ use std::{
 
 use crossterm::{
     cursor::{SetCursorStyle, Show},
-    event::read,
+    event::{read, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     style::ResetColor,
     terminal::{disable_raw_mode, EnableLineWrap, LeaveAlternateScreen},
@@ -83,7 +83,15 @@ fn parse_args(msg_sender: Sender<EditorEvent>) -> io::Result<()> {
 fn input(out: Sender<EditorEvent>) {
     loop {
         if let Ok(event) = read() {
-            if let Err(_) = out.send(EditorEvent::Input(event)) {
+            if let Event::Key(KeyEvent {
+                code: KeyCode::Char('q'),
+                modifiers: KeyModifiers::CONTROL,
+                ..
+            }) = event
+            {
+                out.send(EditorEvent::Input(event)).unwrap();
+                break;
+            } else if let Err(_) = out.send(EditorEvent::Input(event)) {
                 break;
             }
         }
