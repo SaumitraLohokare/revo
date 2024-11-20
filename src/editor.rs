@@ -188,6 +188,10 @@ impl<W: Write> Editor<W> {
         }
     }
 
+    fn remove_focus(&mut self, id: Uuid) {
+        self.focus_stack = self.focus_stack.iter().filter(|_id| **_id != id).map(|id| *id).collect();
+    }
+
     fn get_focused_buffer<'a>(&'a mut self) -> Option<&'a Buffer> {
         let id = match self.focus_stack.last() {
             Some(id) => id,
@@ -228,12 +232,7 @@ impl<W: Write> Editor<W> {
 
     pub fn close_overlay(&mut self, id: Uuid) {
         if self.overlays.contains_key(&id) {
-            self.focus_stack = self
-                .focus_stack
-                .iter()
-                .filter(|_id| **_id == id)
-                .map(|id| *id)
-                .collect();
+            self.remove_focus(id);
 
             self.overlays.remove(&id);
         } else {
