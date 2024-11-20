@@ -17,6 +17,8 @@
 
 ## Bugs
 
+- On OsX, when you quit with Ctrl+Q, it still waits for an input, probably because the input thread didn't close.
+- On OsX, the Ctrl+Shift+S doesn't work
 
 ## Improvements
 
