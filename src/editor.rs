@@ -60,10 +60,10 @@ pub struct Editor<W: Write> {
     settings: Settings,
 
     buffers: HashMap<Uuid, Buffer>,
-    active_buffer: Option<Uuid>,
-
+    // active_buffer: Option<Uuid>,
     overlays: HashMap<Uuid, Buffer>,
-    active_overlay: Option<Uuid>,
+    // active_overlay: Option<Uuid>,
+    focus_stack: Vec<Uuid>,
 
     pub terminal: Terminal<W>,
 
@@ -83,9 +83,10 @@ impl<W: Write> Editor<W> {
         Ok(Self {
             settings,
             buffers: HashMap::new(),
-            active_buffer: None,
+            // active_buffer: None,
             overlays: HashMap::new(),
-            active_overlay: None,
+            // active_overlay: None,
+            focus_stack: vec![],
             terminal: Terminal::new(out)?,
             msg_receiver,
             sender_copy,
@@ -164,7 +165,7 @@ impl<W: Write> Editor<W> {
 
     pub fn activate_buffer(&mut self, id: Uuid) {
         if self.buffers.contains_key(&id) {
-            self.active_buffer = Some(id);
+            self.focus_stack.push(id);
         } else {
             panic!("Tried to activate an invalid buffer.");
         }
@@ -181,17 +182,58 @@ impl<W: Write> Editor<W> {
 
     pub fn activate_overlay(&mut self, id: Uuid) {
         if self.overlays.contains_key(&id) {
-            self.active_overlay = Some(id);
+            self.focus_stack.push(id);
         } else {
             panic!("Tried to activate an invalid buffer.");
         }
     }
 
+    fn get_focused_buffer<'a>(&'a mut self) -> Option<&'a Buffer> {
+        let id = match self.focus_stack.last() {
+            Some(id) => id,
+            None => return None,
+        };
+
+        let buff = self.buffers.get(&id);
+        if buff.is_some() {
+            return buff;
+        }
+
+        let buff = self.overlays.get(&id);
+        if buff.is_some() {
+            return buff;
+        }
+
+        unreachable!("ID was not present in any buffers list")
+    }
+
+    fn get_focused_buffer_mut<'a>(&'a mut self) -> Option<&'a mut Buffer> {
+        let id = match self.focus_stack.last() {
+            Some(id) => id,
+            None => return None,
+        };
+
+        let buff = self.buffers.get_mut(&id);
+        if buff.is_some() {
+            return buff;
+        }
+
+        let buff = self.overlays.get_mut(&id);
+        if buff.is_some() {
+            return buff;
+        }
+
+        unreachable!("ID was not present in any buffers list")
+    }
+
     pub fn close_overlay(&mut self, id: Uuid) {
         if self.overlays.contains_key(&id) {
-            if self.active_overlay == Some(id) {
-                self.active_overlay = None;
-            }
+            self.focus_stack = self
+                .focus_stack
+                .iter()
+                .filter(|_id| **_id == id)
+                .map(|id| *id)
+                .collect();
 
             self.overlays.remove(&id);
         } else {
@@ -225,10 +267,19 @@ impl<W: Write> Editor<W> {
 
     // TODO: This will work with FocusStack
     pub fn show_cursor(&mut self) -> io::Result<()> {
-        if let Some(id) = self.active_overlay {
-            self.terminal.show_cursor(self.overlays.get(&id).unwrap())?;
-        } else if let Some(id) = self.active_buffer {
-            self.terminal.show_cursor(self.buffers.get(&id).unwrap())?;
+        let buf = match self.get_focused_buffer() {
+            Some(buf) => buf,
+            None => return Ok(()),
+        };
+
+        let (cursor_x, cursor_y) = buf.cursor_xy();
+
+        if cursor_x >= buf.x as isize
+            && cursor_x < buf.x as isize + buf.width as isize
+            && cursor_y >= buf.y as isize
+            && cursor_y < buf.y as isize + buf.height as isize
+        {
+            self.terminal.show_cursor(cursor_x as u16, cursor_y as u16)?;
         }
 
         Ok(())
@@ -236,10 +287,8 @@ impl<W: Write> Editor<W> {
 
     // TODO: This will work with FocusStack
     pub fn forward_event(&mut self, event: Event) {
-        if let Some(id) = self.active_overlay {
-            self.overlays.get_mut(&id).unwrap().parse_input(event);
-        } else if let Some(id) = self.active_buffer {
-            self.buffers.get_mut(&id).unwrap().parse_input(event);
+        if let Some(buf) = self.get_focused_buffer_mut() {
+            buf.parse_input(event);
         }
     }
 
@@ -322,7 +371,7 @@ impl<W: Write> Editor<W> {
 
         Ok(())
     }
-    
+
     fn save_buffer(&mut self, id: Uuid) -> io::Result<()> {
         if let Some(buf) = self.buffers.get(&id) {
             let contents: String = buf.data.to_string();
@@ -336,7 +385,7 @@ impl<W: Write> Editor<W> {
 
         Ok(())
     }
-    
+
     fn save_buffer_as(&mut self, id: Uuid, file_name: String) -> io::Result<()> {
         if let Some(buf) = self.buffers.get_mut(&id) {
             let contents: String = buf.data.to_string();

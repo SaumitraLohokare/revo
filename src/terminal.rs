@@ -292,18 +292,8 @@ impl<W: Write> Terminal<W> {
         }
     }
 
-    pub fn show_cursor(&mut self, buffer: &Buffer) -> io::Result<()> {
-        let (cursor_x, cursor_y) = buffer.cursor_xy();
-
-        if cursor_x >= buffer.x as isize
-            && cursor_x < buffer.x as isize + buffer.width as isize
-            && cursor_y >= buffer.y as isize
-            && cursor_y < buffer.y as isize + buffer.height as isize
-        {
-            execute!(self.out, MoveTo(cursor_x as u16, cursor_y as u16), Show,)?;
-        }
-
-        Ok(())
+    pub fn show_cursor(&mut self, cursor_x: u16, cursor_y: u16) -> io::Result<()> {
+        execute!(self.out, MoveTo(cursor_x, cursor_y), Show,)
     }
 }
 
