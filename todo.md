@@ -1,0 +1,15 @@
+- [ ] Add multi cursor support
+- [ ] Add Better Editing
+    - d: delete
+    - c: change
+    - ctrl+c: copy (if no selection then copy entire line)
+    - ctrl+v: paste (if entire line copied, then paste above)
+    - alt+l: select line (twice to select edge white spaces)
+    - _: trim selection
+    - NOTE: sync clipboard with OS
+- [ ] Add Commands
+- [ ] Add Layout
+- [ ] Add Async File Loading
+- [ ] Add Async Input Handling
+- [ ] Add PTY support
+- [ ] Add settings, and stuff

@@ -12,17 +12,14 @@ impl VecExt for Vec<char> {
             self.push(ch);
         }
     }
-    
+
     /// Replaces chars in the `Vec` starting from given index with `char`s from `&str`.
-    /// 
+    ///
     /// NOTE: If `self.len()` ends before all the characters from `string` are inserted, then we stop.
     fn replace_from(&mut self, index: usize, with: &str) {
-        let mut chars = with.chars();
-        for i in index..self.len() {
-            match chars.next() {
-                Some(ch) => self[i] = ch,
-                None => break,
-            }
-        }
+        self.iter_mut()
+            .skip(index)
+            .zip(with.chars())
+            .for_each(|(c1, c2)| *c1 = c2);
     }
 }
